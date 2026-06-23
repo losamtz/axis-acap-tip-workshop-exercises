@@ -59,30 +59,7 @@ static gboolean send_data(AppData *send_data) {
   generate_random_data(send_data);
   key_value_set = ax_event_key_value_set_new();
 
-  // Add the variable elements of the event to the set
-    
-    if(!ax_event_key_value_set_add_key_value(key_value_set, "Temperature", NULL,
-                                         &app_data->temperature,
-                                         AX_VALUE_TYPE_DOUBLE, NULL)) {
-        syslog(LOG_WARNING, "Could not add temperature key/value pair");
-    }                                        
-    if(!ax_event_key_value_set_add_key_value(key_value_set, "Load", NULL,
-                                       &app_data->load, AX_VALUE_TYPE_DOUBLE,
-                                       NULL)) {
-        syslog(LOG_WARNING, "Could not add load key/value pair");
-    }
-  
-    if(!ax_event_key_value_set_add_key_value(key_value_set, "UsedMemory", NULL,
-                                        &app_data->used_memory, AX_VALUE_TYPE_INT,
-                                        NULL)) {
-        syslog(LOG_WARNING, "Could not add used memory key/value pair");
-    }
-
-    if(!ax_event_key_value_set_add_key_value(key_value_set, "FreeMemory", NULL,
-                                        &app_data->free_memory, AX_VALUE_TYPE_INT,
-                                        NULL)) {
-        syslog(LOG_WARNING, "Could not add free memory key/value pair");
-    }
+  /* TODO 1: Add the runtime data values to the event key/value set. */
 
   // Create the event
   event = ax_event_new2(key_value_set, NULL);
@@ -90,14 +67,7 @@ static gboolean send_data(AppData *send_data) {
   // The key/value set is no longer needed
   ax_event_key_value_set_free(key_value_set);
 
-  if (!ax_event_handler_send_event(send_data->event_handler, 
-                                        send_data->event_id, 
-                                        event, 
-                                        NULL)) {
-    LOG_ERROR("Could not fire event\n");
-  }
-  else
-    LOG("sent data event");
+  /* TODO 2: Send the event with the declared event id. */
 
   ax_event_free(event);
 
@@ -137,58 +107,10 @@ static guint setup_declaration(AXEventHandler *event_handler) {
 
       // OMITING ERROR HANDLING!
 
-      //TOPIC LEVEL 0 
-      ax_event_key_value_set_add_key_value( key_value_set,"topic0", "tnsaxis", TOPIC0_TAG, AX_VALUE_TYPE_STRING, NULL);
-      //ax_event_key_value_set_add_nice_names( dataSet,"topic0", "tnsaxis", TOPIC0_NAME, TOPIC0_NAME ,NULL);
-      //As we are using the standard CameraApplicationPlatform there is no need to set nice name  
-
-      //TOPIC LEVEL 1
-      ax_event_key_value_set_add_key_value( key_value_set,"topic1", "tnsaxis", TOPIC1_TAG, AX_VALUE_TYPE_STRING, NULL);
-      ax_event_key_value_set_add_nice_names( key_value_set,"topic1", "tnsaxis", TOPIC1_TAG, TOPIC1_NAME, NULL);
-
-      //TOPIC LEVEL 2
-      ax_event_key_value_set_add_key_value(  key_value_set, "topic2", "tnsaxis", EVENT_TAG , AX_VALUE_TYPE_STRING, NULL);
-      ax_event_key_value_set_add_nice_names( key_value_set, "topic2", "tnsaxis", EVENT_TAG, EVENT_NAME, NULL);
-
-      // A data event is typically used for a specific client/application that knows how to process the data.
-      // If the event is not intended to trigger general actions it is a good idea to tag the event
-      // with "isApplicationData" to requests clients/actionrules not to display the event.
-      ax_event_key_value_set_mark_as_user_defined( key_value_set, "topic2", "tnsaxis", "isApplicationData", NULL);
-
-      //EVENT DATA INSTANCE
-      // A tag id that holds the user data Temperature.  It is recommended to mark event user data with "isApplicationData"
-      ax_event_key_value_set_add_key_value(key_value_set, "Temperature", NULL, &temperature , AX_VALUE_TYPE_DOUBLE, NULL);
-      ax_event_key_value_set_mark_as_data(key_value_set, "Temperature", NULL, NULL);
-      ax_event_key_value_set_mark_as_user_defined(key_value_set, "Temperature", NULL, "isApplicationData", NULL);
-
-      // Data Load
-      ax_event_key_value_set_add_key_value(key_value_set, "Load", NULL, &load, AX_VALUE_TYPE_DOUBLE, NULL);
-      ax_event_key_value_set_mark_as_data(key_value_set, "Load", NULL, NULL);
-      ax_event_key_value_set_mark_as_user_defined(key_value_set, "Load", NULL, "isApplicationData", NULL);
-
-      // Data Used Memory
-
-      ax_event_key_value_set_add_key_value(key_value_set, "UsedMemory", NULL, &used_memory, AX_VALUE_TYPE_INT, NULL);
-      ax_event_key_value_set_add_nice_names( key_value_set, "UsedMemory", NULL, "UsedMemory", "Used Memory (MB)", NULL);
-      ax_event_key_value_set_mark_as_data(key_value_set, "UsedMemory", NULL, NULL);
-      ax_event_key_value_set_mark_as_user_defined(key_value_set, "UsedMemory", NULL, "isApplicationData", NULL);
-
-      // Data Free Memory
-
-      ax_event_key_value_set_add_key_value(key_value_set, "FreeMemory", NULL, &free_memory, AX_VALUE_TYPE_INT, NULL);
-      ax_event_key_value_set_add_nice_names( key_value_set, "FreeMemory", NULL, "FreeMemory", "Free Memory (MB)", NULL);
-      ax_event_key_value_set_mark_as_data(key_value_set, "FreeMemory", NULL, NULL);
-      ax_event_key_value_set_mark_as_user_defined(key_value_set, "FreeMemory", NULL, "isApplicationData", NULL);
+      /* TODO 3: Declare the SendData topic and data schema. */
       
       //Note that the 3:rd parameter defines if the event is stateful or stateless.  1 = stateless, 0 = stateful
-      if( !ax_event_handler_declare(event_handler, 
-                                        key_value_set, 
-                                        1, 
-                                        &declaration, 
-                                        (AXDeclarationCompleteCallback)declaration_complete, 
-                                        &start_value, 
-                                        NULL))
-        LOG_ERROR("Could not declare event\n");
+      /* TODO 4: Declare the stateless event. */
 
       ax_event_key_value_set_free(key_value_set);
 
@@ -196,10 +118,22 @@ static guint setup_declaration(AXEventHandler *event_handler) {
 }
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    GMainLoop* main_loop = NULL;
+
+    openlog(SERVICE_ID, LOG_PID|LOG_CONS, LOG_USER);
+    main_loop = g_main_loop_new(NULL, FALSE);
+
+    app_data = calloc(1, sizeof(AppData));
+    app_data->event_handler = ax_event_handler_new();
+    app_data->event_id = setup_declaration(app_data->event_handler);
+
+    g_main_loop_run(main_loop);
+
+    ax_event_handler_undeclare(app_data->event_handler, app_data->event_id, NULL);
+    ax_event_handler_free(app_data->event_handler);
+    free(app_data);
+    g_main_loop_unref(main_loop);
+    closelog();
 
     return 0;
 }

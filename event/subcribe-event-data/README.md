@@ -1,8 +1,6 @@
-# Subcribe Event Data Exercise
+# Subscribe Event Data Exercise
 
-This exercise is based on `event/subcribe-event-data` from the complete `axis-acap-tip-workshop` repository.
-
-`app/subscribe_event_data.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
+This exercise subscribes to the `send-data` event and extracts its payload fields.
 
 ## Step 1: Add build dependencies
 
@@ -12,56 +10,42 @@ Open `app/Makefile` and replace the TODO `PKGS` line with:
 PKGS = glib-2.0 axevent
 ```
 
-## Step 2: Add main setup snippet
+## Step 2: Extract payload fields
 
-Paste this into `main()` at the next TODO position:
+Open `app/subscribe_event_data.c` and paste this where the file says `TODO 1`:
 
 ```c
-GMainLoop* main_loop          = NULL;
-    AXEventHandler* event_handler = NULL;
-    guint subscription            = 0;
-
-    // Set up the user logging to syslog
-    openlog(NULL, LOG_PID, LOG_USER);
-    syslog(LOG_INFO, "Started logging from subscribe event application");
-
-    // Event handler
-    event_handler = ax_event_handler_new();
-    subscription  = send_data_event_subscription(event_handler);
-
-    // Main loop
-    main_loop = g_main_loop_new(NULL, FALSE);
-    g_main_loop_run(main_loop);
+ax_event_key_value_set_get_double(key_value_set, "Temperature", NULL, &temperature, NULL);
+ax_event_key_value_set_get_double(key_value_set, "Load", NULL, &load, NULL);
+ax_event_key_value_set_get_integer(key_value_set, "UsedMemory", NULL, &used_memory, NULL);
+ax_event_key_value_set_get_integer(key_value_set, "FreeMemory", NULL, &free_memory, NULL);
 ```
 
-## Step 3: Add main configuration snippet
+## Step 3: Match the SendData topic
 
-Paste this into `main()` at the next TODO position:
+Paste this where the file says `TODO 2`:
 
 ```c
-// Cleanup event handler
-    ax_event_handler_unsubscribe(event_handler, subscription, NULL);
-    ax_event_handler_free(event_handler);
+ax_event_key_value_set_add_key_value(key_value_set, "topic0", "tnsaxis", "CameraApplicationPlatform", AX_VALUE_TYPE_STRING, NULL);
+ax_event_key_value_set_add_key_value(key_value_set, "topic1", "tnsaxis", "SendData", AX_VALUE_TYPE_STRING, NULL);
+ax_event_key_value_set_add_key_value(key_value_set, "topic2", "tnsaxis", "SendDataEvent", AX_VALUE_TYPE_STRING, NULL);
+```
 
-    // Free g_main_loop
-    g_main_loop_unref(main_loop);
+## Step 4: Subscribe with the callback
+
+Paste this where the file says `TODO 3`:
+
+```c
+ax_event_handler_subscribe(event_handler, key_value_set, &subscription, (AXSubscriptionCallback)subscription_callback, NULL, NULL);
 ```
 
 ## Build
-
-From this example directory:
 
 ```sh
 docker build --tag subcribe-event-data --build-arg ARCH=aarch64 .
 docker cp $(docker create subcribe-event-data):/opt/app ./build
 ```
 
-The generated `.eap` package will be copied into `./build`.
-
 ## Verify
 
-Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
-
-## Reference
-
-Complete source: `event/subcribe-event-data` in `axis-acap-tip-workshop`.
+Install this application together with `send-data`, start both, and follow the [test guide](.test/test.md).

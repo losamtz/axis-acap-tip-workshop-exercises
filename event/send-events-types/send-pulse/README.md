@@ -1,8 +1,6 @@
 # Send Pulse Exercise
 
-This exercise is based on `event/send-events-types/send-pulse` from the complete `axis-acap-tip-workshop` repository.
-
-`app/send_pulse.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
+This exercise declares and sends a stateless pulse-style event every five seconds.
 
 ## Step 1: Add build dependencies
 
@@ -12,60 +10,50 @@ Open `app/Makefile` and replace the TODO `PKGS` line with:
 PKGS = glib-2.0 axevent
 ```
 
-## Step 2: Add main setup snippet
+## Step 2: Add and send the runtime value
 
-Paste this into `main()` at the next TODO position:
+Open `app/send_pulse.c`.
+
+For `TODO 1`, add the current value to the event key/value set:
 
 ```c
-GMainLoop* main_loop  = NULL;
-  guint start_value     = 0;
-
-  // Set up the user logging to syslog
-  openlog(SERVICE_ID, LOG_PID|LOG_CONS, LOG_USER);
-  syslog(LOG_INFO, "Started logging from send event application");
-
-  //Initialize the event handler
-  app_data                = calloc(1, sizeof(AppData));
-  app_data->event_handler = ax_event_handler_new();
-  app_data->event_id      = setup_declaration(app_data->event_handler, &start_value);
-
-  // main loop
-  main_loop = g_main_loop_new( NULL, FALSE);
-
-  g_main_loop_run(main_loop);
+ax_event_key_value_set_add_key_value(key_value_set, "value", NULL, &send_data->value, AX_VALUE_TYPE_INT, NULL);
 ```
 
-## Step 3: Add main configuration snippet
-
-Paste this into `main()` at the next TODO position:
+For `TODO 2`, send the event:
 
 ```c
-/// Cleanup event handler
-  ax_event_handler_undeclare(app_data->event_handler, app_data->event_id, NULL);
-  ax_event_handler_free(app_data->event_handler);
-  free(app_data);
+if (!ax_event_handler_send_event(send_data->event_handler, send_data->event_id, event, NULL))
+    LOG_ERROR("Could not fire event\n");
+```
 
-  // Free g_main_loop
-  g_main_loop_unref(main_loop);
+## Step 3: Declare the pulse event
 
-  return 0;
+For `TODO 3`, add `topic0`, `topic1`, and `topic2` using `TOPIC0_TAG`, `TOPIC1_TAG`, and `EVENT_TAG`.
+
+For `TODO 4`, add `value` and mark it as data:
+
+```c
+ax_event_key_value_set_add_key_value(key_value_set, "value", NULL, &start_value, AX_VALUE_TYPE_INT, NULL);
+ax_event_key_value_set_mark_as_data(key_value_set, "value", NULL, NULL);
+```
+
+For `TODO 5`, declare the event as stateless:
+
+```c
+if (!ax_event_handler_declare(event_handler, key_value_set, 1, &declaration, (AXDeclarationCompleteCallback)declaration_complete, &start_value, NULL)) {
+    syslog(LOG_WARNING, "Could not declare: %s", error->message);
+    g_error_free(error);
+}
 ```
 
 ## Build
-
-From this example directory:
 
 ```sh
 docker build --tag send-pulse --build-arg ARCH=aarch64 .
 docker cp $(docker create send-pulse):/opt/app ./build
 ```
 
-The generated `.eap` package will be copied into `./build`.
-
 ## Verify
 
-Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
-
-## Reference
-
-Complete source: `event/send-events-types/send-pulse` in `axis-acap-tip-workshop`.
+Install the application, start it, and follow the [test guide](.test/test.md).

@@ -53,11 +53,7 @@ static void subscription_callback(guint subscription, AXEvent* event, gpointer *
     // Extract the AXEventKeyValueSet from the event
     key_value_set = ax_event_get_key_value_set(event);
 
-    // Get the Value of the data event
-    ax_event_key_value_set_get_double(key_value_set, "Temperature", NULL, &temperature, NULL);
-    ax_event_key_value_set_get_double(key_value_set, "Load", NULL, &load, NULL);
-    ax_event_key_value_set_get_integer(key_value_set, "UsedMemory", NULL, &used_memory, NULL);
-    ax_event_key_value_set_get_integer(key_value_set, "FreeMemory", NULL, &free_memory, NULL);
+    /* TODO 1: Extract the data fields from the received event. */
     // Print a helpful message
     syslog(LOG_INFO, "Temperature: %f C", temperature);
     syslog(LOG_INFO, "Load: %f", load);
@@ -89,36 +85,13 @@ static guint send_data_event_subscription(AXEventHandler* event_handler) {
 
     key_value_set = ax_event_key_value_set_new();
 
-    // Set keys and namespaces for the event to be subscribed
-    ax_event_key_value_set_add_key_value(key_value_set,
-                                         "topic0",
-                                         "tnsaxis",
-                                         "CameraApplicationPlatform",
-                                         AX_VALUE_TYPE_STRING,
-                                         NULL);
-    ax_event_key_value_set_add_key_value(key_value_set,
-                                         "topic1",
-                                         "tnsaxis",
-                                         "SendData",
-                                         AX_VALUE_TYPE_STRING,
-                                         NULL);
-    ax_event_key_value_set_add_key_value(key_value_set,
-                                         "topic2",
-                                         "tnsaxis",
-                                         "SendDataEvent",
-                                         AX_VALUE_TYPE_STRING,
-                                         NULL);
+    /* TODO 2: Add the SendData topic keys to the subscription filter. */
 
     /*
      * Time to setup the subscription. Use the "token" input argument as
      * input data to the callback function "subscription callback"
      */
-    ax_event_handler_subscribe(event_handler,
-                               key_value_set,
-                               &subscription,
-                               (AXSubscriptionCallback)subscription_callback,
-                               NULL,
-                               NULL);
+    /* TODO 3: Subscribe with the callback. */
 
 
     // The key/value set is no longer needed
@@ -132,10 +105,22 @@ static guint send_data_event_subscription(AXEventHandler* event_handler) {
  */
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    GMainLoop* main_loop = NULL;
+    AXEventHandler* event_handler = NULL;
+    guint subscription = 0;
+
+    openlog(NULL, LOG_PID, LOG_USER);
+    syslog(LOG_INFO, "Started logging from subscribe event application");
+
+    event_handler = ax_event_handler_new();
+    subscription = send_data_event_subscription(event_handler);
+
+    main_loop = g_main_loop_new(NULL, FALSE);
+    g_main_loop_run(main_loop);
+
+    ax_event_handler_unsubscribe(event_handler, subscription, NULL);
+    ax_event_handler_free(event_handler);
+    g_main_loop_unref(main_loop);
 
     return 0;
 }

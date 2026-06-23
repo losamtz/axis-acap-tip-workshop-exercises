@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <time.h>
+#include <stdlib.h>
 #include <axsdk/axevent.h>
 #include <glib-object.h>
 #include <glib.h>
@@ -45,18 +46,14 @@ static gboolean send_event(AppData *send_data) {
     guint value = send_data->values[send_data->value_index];
     guint event_id = send_data->event_ids[send_data->value_index];
 
-    ax_event_key_value_set_add_key_value(key_value_set, "value", NULL, &value, AX_VALUE_TYPE_INT, NULL);
+    /* TODO 1: Add the selected dropdown value to the runtime event. */
 
     // Create the event
     event = ax_event_new2(key_value_set, NULL);
     // The key/value set is no longer needed
     ax_event_key_value_set_free(key_value_set);
 
-    if (!ax_event_handler_send_event(send_data->event_handler, event_id, event, NULL)) {
-        LOG_ERROR("Could not fire event with value: %u\n", value);
-    } else {
-        LOG("Event sent with value: %u\n", value);
-    }
+    /* TODO 2: Send the event for the selected declaration id. */
 
     ax_event_free(event);
 
@@ -89,27 +86,11 @@ static guint setup_declaration(AXEventHandler* event_handler, guint *value) {
 
     key_value_set = ax_event_key_value_set_new();
 
-    ax_event_key_value_set_add_key_value(key_value_set, "topic0", "tnsaxis", TOPIC0_TAG, AX_VALUE_TYPE_STRING, NULL);
+    /* TODO 3: Add the SendPulseDropDown topic keys and nice names. */
 
-    ax_event_key_value_set_add_key_value(key_value_set, "topic1", "tnsaxis", TOPIC1_TAG, AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_add_nice_names(key_value_set, "topic1", "tnsaxis", TOPIC1_TAG, TOPIC1_NAME, NULL);
+    /* TODO 4: Add value as a source field so it appears as a dropdown. */
 
-    ax_event_key_value_set_add_key_value(key_value_set, "topic2", "tnsaxis", EVENT_TAG, AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_add_nice_names(key_value_set, "topic2", "tnsaxis", EVENT_TAG, EVENT_NAME, NULL);
-
-    // Declare value as SOURCE (will appear as dropdown in Axis UI)
-    ax_event_key_value_set_add_key_value(key_value_set, "value", NULL, value, AX_VALUE_TYPE_INT, NULL);
-    ax_event_key_value_set_mark_as_source(key_value_set, "value", NULL, NULL);
-
-    if (!ax_event_handler_declare(event_handler,
-                                      key_value_set,
-                                      1,  // Stateless
-                                      &declaration,
-                                      (AXDeclarationCompleteCallback)declaration_complete,
-                                      value,
-                                      NULL)) {
-            LOG_ERROR("Could not declare event: %s\n", error->message);
-    }
+    /* TODO 5: Declare the stateless event for this source value. */
 
     ax_event_key_value_set_free(key_value_set);
 
@@ -117,10 +98,30 @@ static guint setup_declaration(AXEventHandler* event_handler, guint *value) {
 }
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    GMainLoop* main_loop = NULL;
+
+    openlog(SERVICE_ID, LOG_PID|LOG_CONS, LOG_USER);
+    syslog(LOG_INFO, "Started logging from send event application");
+
+    app_data = calloc(1, sizeof(AppData));
+    setup_values();
+    app_data->event_handler = ax_event_handler_new();
+
+    for (int i = 0; i < MAX_DECLARATIONS; i++) {
+        app_data->event_ids[i] = setup_declaration(app_data->event_handler, &app_data->values[i]);
+    }
+
+    main_loop = g_main_loop_new(NULL, FALSE);
+    g_main_loop_run(main_loop);
+
+    for (int i = 0; i < MAX_DECLARATIONS; ++i) {
+        ax_event_handler_undeclare(app_data->event_handler, app_data->event_ids[i], NULL);
+    }
+
+    ax_event_handler_free(app_data->event_handler);
+    free(app_data);
+    g_main_loop_unref(main_loop);
+    closelog();
 
     return 0;
 }

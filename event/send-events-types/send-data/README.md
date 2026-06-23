@@ -1,8 +1,8 @@
 # Send Data Exercise
 
-This exercise is based on `event/send-events-types/send-data` from the complete `axis-acap-tip-workshop` repository.
+This exercise declares and sends a stateless event with application data fields.
 
-`app/send_data.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
+`app/send_data.c` keeps the main loop and event handler lifecycle in place so the exercise can focus on the event schema and payload.
 
 ## Step 1: Add build dependencies
 
@@ -12,57 +12,63 @@ Open `app/Makefile` and replace the TODO `PKGS` line with:
 PKGS = glib-2.0 axevent
 ```
 
-## Step 2: Add main setup snippet
+## Step 2: Add runtime data values
 
-Paste this into `main()` at the next TODO position:
+Open `app/send_data.c` and paste this where the file says `TODO 1`:
 
 ```c
-GMainLoop* main_loop  = NULL;
-
-      openlog(SERVICE_ID, LOG_PID|LOG_CONS, LOG_USER);
-      main_loop = g_main_loop_new( NULL, FALSE);
-
-      //Initialize the event handler
-      app_data                = calloc(1, sizeof(AppData));
-      app_data->event_handler = ax_event_handler_new();
-      app_data->event_id      = setup_declaration(app_data->event_handler);
-
-      g_main_loop_run(main_loop);
-
-      /// Cleanup event handler
-      ax_event_handler_undeclare(app_data->event_handler, app_data->event_id, NULL);
-      ax_event_handler_free(app_data->event_handler);
-      free(app_data);
+if (!ax_event_key_value_set_add_key_value(key_value_set, "Temperature", NULL, &app_data->temperature, AX_VALUE_TYPE_DOUBLE, NULL))
+    syslog(LOG_WARNING, "Could not add temperature key/value pair");
+if (!ax_event_key_value_set_add_key_value(key_value_set, "Load", NULL, &app_data->load, AX_VALUE_TYPE_DOUBLE, NULL))
+    syslog(LOG_WARNING, "Could not add load key/value pair");
+if (!ax_event_key_value_set_add_key_value(key_value_set, "UsedMemory", NULL, &app_data->used_memory, AX_VALUE_TYPE_INT, NULL))
+    syslog(LOG_WARNING, "Could not add used memory key/value pair");
+if (!ax_event_key_value_set_add_key_value(key_value_set, "FreeMemory", NULL, &app_data->free_memory, AX_VALUE_TYPE_INT, NULL))
+    syslog(LOG_WARNING, "Could not add free memory key/value pair");
 ```
 
-## Step 3: Add main configuration snippet
+## Step 3: Send the event
 
-Paste this into `main()` at the next TODO position:
+Paste this where the file says `TODO 2`:
 
 ```c
-// Free g_main_loop
-      g_main_loop_unref(main_loop);
+if (!ax_event_handler_send_event(send_data->event_handler, send_data->event_id, event, NULL))
+    LOG_ERROR("Could not fire event\n");
+else
+    LOG("sent data event");
+```
 
-      closelog();
+## Step 4: Declare the schema
 
-      return 0;
+Paste this where the file says `TODO 3`:
+
+```c
+ax_event_key_value_set_add_key_value(key_value_set, "topic0", "tnsaxis", TOPIC0_TAG, AX_VALUE_TYPE_STRING, NULL);
+ax_event_key_value_set_add_key_value(key_value_set, "topic1", "tnsaxis", TOPIC1_TAG, AX_VALUE_TYPE_STRING, NULL);
+ax_event_key_value_set_add_nice_names(key_value_set, "topic1", "tnsaxis", TOPIC1_TAG, TOPIC1_NAME, NULL);
+ax_event_key_value_set_add_key_value(key_value_set, "topic2", "tnsaxis", EVENT_TAG, AX_VALUE_TYPE_STRING, NULL);
+ax_event_key_value_set_add_nice_names(key_value_set, "topic2", "tnsaxis", EVENT_TAG, EVENT_NAME, NULL);
+ax_event_key_value_set_mark_as_user_defined(key_value_set, "topic2", "tnsaxis", "isApplicationData", NULL);
+```
+
+Then add each data field with `ax_event_key_value_set_add_key_value(...)`, mark it with `ax_event_key_value_set_mark_as_data(...)`, and mark it as `"isApplicationData"`.
+
+## Step 5: Declare the event
+
+Paste this where the file says `TODO 4`:
+
+```c
+if (!ax_event_handler_declare(event_handler, key_value_set, 1, &declaration, (AXDeclarationCompleteCallback)declaration_complete, &start_value, NULL))
+    LOG_ERROR("Could not declare event\n");
 ```
 
 ## Build
-
-From this example directory:
 
 ```sh
 docker build --tag send-data --build-arg ARCH=aarch64 .
 docker cp $(docker create send-data):/opt/app ./build
 ```
 
-The generated `.eap` package will be copied into `./build`.
-
 ## Verify
 
-Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
-
-## Reference
-
-Complete source: `event/send-events-types/send-data` in `axis-acap-tip-workshop`.
+Install the application, start it, and follow the [test guide](.test/test.md).

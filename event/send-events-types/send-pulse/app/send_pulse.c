@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <time.h>
+#include <stdlib.h>
 #include <axsdk/axevent.h>
 #include <glib-object.h>
 #include <glib.h>
@@ -35,7 +36,7 @@ static gboolean send_event(AppData *send_data) {
     
     key_value_set = ax_event_key_value_set_new();
 
-    ax_event_key_value_set_add_key_value( key_value_set, "value", NULL, &send_data->value, AX_VALUE_TYPE_INT, NULL);
+    /* TODO 1: Add the pulse value to the runtime event. */
     
     //time_stamp = g_date_time_new_now_local();
 
@@ -46,8 +47,7 @@ static gboolean send_event(AppData *send_data) {
     // The key/value set is no longer needed
     ax_event_key_value_set_free(key_value_set);
 
-    if(!ax_event_handler_send_event(send_data->event_handler, send_data->event_id, event, NULL))
-      LOG_ERROR("Could not fire event\n");
+    /* TODO 2: Send the pulse event. */
     ax_event_free(event);
     //g_date_time_unref(time_stamp);
 
@@ -79,38 +79,17 @@ static guint setup_declaration(AXEventHandler* event_handler, guint *start_value
   //Note that the name space is "tnsaxis:".  It is not recommended to create own name spaces or use the
   //the ONVIF namespace "tns1:"
 
-    //TOPIC LEVEL 0
-    ax_event_key_value_set_add_key_value( key_value_set,"topic0", "tnsaxis", TOPIC0_TAG, AX_VALUE_TYPE_STRING,NULL);
-    //ax_event_key_value_set_add_nice_names( dataSet,"topic0", "tnsaxis", TOPIC0_NAME, TOPIC0_NAME ,NULL);
-    //As we are using the standard CameraApplicationPlatform there is no need to set nice name  
-
-    //TOPIC LEVEL 1
-    ax_event_key_value_set_add_key_value( key_value_set,"topic1", "tnsaxis", TOPIC1_TAG, AX_VALUE_TYPE_STRING,NULL);
-    ax_event_key_value_set_add_nice_names( key_value_set,"topic1", "tnsaxis", TOPIC1_TAG, TOPIC1_NAME, NULL);
-
-    //TOPIC LEVEL 2
-    ax_event_key_value_set_add_key_value(  key_value_set, "topic2", "tnsaxis", EVENT_TAG , AX_VALUE_TYPE_STRING,NULL);
-    ax_event_key_value_set_add_nice_names( key_value_set, "topic2", "tnsaxis", EVENT_TAG, EVENT_NAME, NULL);
+    /* TODO 3: Add the SendPulse topic keys and nice names. */
 
     //EVENT DATA INSTANCE
     //  Note: A value is normally not be needed for a puls event but is needed to make the event visible and
     //  selectable in the cameras' Event/ActionRule dialog web page
     //  The value may contain information to the client (only recommended for consumers that clients that
     //  can process the data).  It is not recommeded to use the value as a filter for action rules.   
-    ax_event_key_value_set_add_key_value( key_value_set,"value", NULL, &start_value, AX_VALUE_TYPE_INT,NULL);
-    ax_event_key_value_set_mark_as_data( key_value_set, "value", NULL, NULL);
+    /* TODO 4: Add and mark the pulse value as data. */
     
     //Note that the 3:rd parameter defines if he event is staeful or stateless.  1 = stateless, 0 = stateful
-    if( !ax_event_handler_declare(event_handler, 
-                                  key_value_set, 
-                                  1, 
-                                  &declaration, 
-                                  (AXDeclarationCompleteCallback)declaration_complete, 
-                                  &start_value, 
-                                  NULL)) {
-        syslog(LOG_WARNING, "Could not declare: %s", error->message);
-        g_error_free(error);
-    }   
+    /* TODO 5: Declare the stateless pulse event. */
     
     // The key/value set is no longer needed
     ax_event_key_value_set_free( key_value_set );
@@ -118,10 +97,23 @@ static guint setup_declaration(AXEventHandler* event_handler, guint *start_value
 }
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    GMainLoop* main_loop = NULL;
+    guint start_value = 0;
+
+    openlog(SERVICE_ID, LOG_PID|LOG_CONS, LOG_USER);
+    syslog(LOG_INFO, "Started logging from send event application");
+
+    app_data = calloc(1, sizeof(AppData));
+    app_data->event_handler = ax_event_handler_new();
+    app_data->event_id = setup_declaration(app_data->event_handler, &start_value);
+
+    main_loop = g_main_loop_new(NULL, FALSE);
+    g_main_loop_run(main_loop);
+
+    ax_event_handler_undeclare(app_data->event_handler, app_data->event_id, NULL);
+    ax_event_handler_free(app_data->event_handler);
+    free(app_data);
+    g_main_loop_unref(main_loop);
 
     return 0;
 }

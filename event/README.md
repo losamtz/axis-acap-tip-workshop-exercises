@@ -9,7 +9,7 @@ This folder teaches event publishing first, then event subscription.
 
 ```mermaid
 flowchart TD
-    A[send-data<br/>stateless event with payload] --> B[subscribe-event-data<br/>receive and parse payload]
+    A[send-data<br/>stateless event with payload] --> B[subcribe-event-data<br/>receive and parse payload]
     A --> C[send-pulse<br/>short trigger event]
     C --> D[send-pulse-dropdown<br/>source values for UI dropdowns]
     A --> E[send-state<br/>stateful property event]
@@ -21,7 +21,7 @@ flowchart TD
 | Example | Main lesson |
 | --- | --- |
 | `send-data` | declare and send stateless data events |
-| `subscribe-event-data` | subscribe to a topic and extract payload |
+| `subcribe-event-data` | subscribe to a topic and extract payload |
 | `send-pulse` | send short trigger-like events |
 | `send-pulse-dropdown` | mark values as source fields for dropdown behavior |
 | `send-state` | declare a stateful event with an active property |

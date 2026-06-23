@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <time.h>
+#include <stdlib.h>
 #include <axsdk/axevent.h>
 #include <glib-object.h>
 #include <glib.h>
@@ -50,11 +51,7 @@ static gboolean send_event(AppData* send_data) {
     
     key_value_set = ax_event_key_value_set_new();
 
-    ax_event_key_value_set_add_key_value( key_value_set, "active", NULL, &send_data->value, AX_VALUE_TYPE_BOOL, NULL);
-    ax_event_key_value_set_add_key_value(key_value_set, "triggerTime", NULL, "today", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_add_key_value(key_value_set, "classTypes", NULL, "car", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_add_key_value(key_value_set, "scenarioType",NULL, "scenario1", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_add_key_value(key_value_set, "objectId", NULL, "1", AX_VALUE_TYPE_STRING, NULL);
+    /* TODO 1: Add active state and metadata values to the runtime event. */
 
 
     //time_stamp = g_date_time_new_now_local();
@@ -66,8 +63,7 @@ static gboolean send_event(AppData* send_data) {
     // The key/value set is no longer needed
     ax_event_key_value_set_free(key_value_set);
 
-    if(!ax_event_handler_send_event(send_data->event_handler, send_data->event_id, event, NULL))
-      LOG_ERROR("Could not fire event\n");
+    /* TODO 2: Send the state-with-data event. */
     ax_event_free(event);
     //g_date_time_unref(time_stamp);
 
@@ -97,58 +93,15 @@ static guint setup_declaration(AXEventHandler* event_handler, guint *start_value
     // Create keys, namespaces and nice names for the event
     key_value_set = ax_event_key_value_set_new();
 
-    ax_event_key_value_set_add_key_value(key_value_set,
-                                         "topic0",
-                                         "tnsaxis",
-                                         "CameraApplicationPlatform",
-                                         AX_VALUE_TYPE_STRING,
-                                         NULL);
-    ax_event_key_value_set_add_key_value(key_value_set,
-                                         "topic1",
-                                         "tnsaxis",
-                                         "ObjectAnalytics", /*  If key value is = ObjectAnalytics then the declared key_value_set won't be visible in UI / same as AOA . If SendStateWithData then key_value_set will appear in UI*/
-                                         AX_VALUE_TYPE_STRING,
-                                         NULL);
-    
-    //TOPIC LEVEL 2
-    ax_event_key_value_set_add_key_value(  key_value_set, "topic2", "tnsaxis", "SendStateWithDataEvent" , AX_VALUE_TYPE_STRING,NULL);
-    ax_event_key_value_set_add_nice_names( key_value_set, "topic2", "tnsaxis", "SendStateWithDataEvent", "Send State With Data Event", NULL);
+    /* TODO 3: Add the ObjectAnalytics topic keys and event nice name. */
 
     // marked as data
     //ax_event_key_value_set_mark_as_user_defined( key_value_set, "topic2", "tnsaxis", "isApplicationData", NULL);
 
-    ax_event_key_value_set_add_key_value( key_value_set, "active", NULL, &start_value, AX_VALUE_TYPE_BOOL, NULL);    
-    ax_event_key_value_set_mark_as_data(key_value_set, "active", NULL, NULL);
-
-    // Shouldn't show isPropertyState
-    ax_event_key_value_set_add_key_value(key_value_set, "triggerTime", NULL, "", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_mark_as_data(key_value_set, "triggerTime", NULL, NULL);
-    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "triggerTime", NULL, "isApplicationData", NULL);
-
-    ax_event_key_value_set_add_key_value(key_value_set, "classTypes", NULL, "", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_mark_as_data(key_value_set, "classTypes", NULL, NULL);
-    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "classTypes", NULL, "isApplicationData", NULL);
-
-    ax_event_key_value_set_add_key_value(key_value_set, "scenarioType",NULL, "", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_mark_as_data(key_value_set, "scenarioType", NULL, NULL);
-    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "scenarioType", NULL, "isApplicationData", NULL);
-
-    ax_event_key_value_set_add_key_value(key_value_set, "objectId", NULL, "", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_mark_as_data(key_value_set, "objectId", NULL, NULL);
-    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "objectId", NULL, "isApplicationData", NULL);
+    /* TODO 4: Add and mark active plus metadata fields as data. */
 
     // Declare event
-    if (!ax_event_handler_declare2(event_handler,
-                                  key_value_set,
-                                  FALSE,  // Indicate a property state event
-                                  "active",
-                                  &declaration,
-                                  (AXDeclarationCompleteCallback)declaration_complete,
-                                  start_value,
-                                  &error)) {
-        syslog(LOG_WARNING, "Could not declare: %s", error->message);
-        g_error_free(error);
-    }
+    /* TODO 5: Declare the stateful event with active as the state key. */
 
     // The key/value set is no longer needed
     ax_event_key_value_set_free(key_value_set);
@@ -160,10 +113,23 @@ static guint setup_declaration(AXEventHandler* event_handler, guint *start_value
  */
 
 gint main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    GMainLoop* main_loop = NULL;
+    guint start_value = 0;
+
+    openlog("send_state_with_data", LOG_PID|LOG_CONS, LOG_USER);
+    syslog(LOG_INFO, "Started logging from send event application");
+
+    app_data = calloc(1, sizeof(AppData));
+    app_data->event_handler = ax_event_handler_new();
+    app_data->event_id = setup_declaration(app_data->event_handler, &start_value);
+
+    main_loop = g_main_loop_new(NULL, FALSE);
+    g_main_loop_run(main_loop);
+
+    ax_event_handler_undeclare(app_data->event_handler, app_data->event_id, NULL);
+    ax_event_handler_free(app_data->event_handler);
+    free(app_data);
+    g_main_loop_unref(main_loop);
 
     return 0;
 }
