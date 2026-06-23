@@ -1,88 +1,146 @@
 # Parameter Manifest Exercise
 
-This exercise is based on the corresponding complete example in `axis-acap-tip-workshop`.
-The source file `app/parameter_manifest.c` has been reduced to a small TODO skeleton.
+This exercise teaches how an application parameter declared in `manifest.json` becomes available to C code through the AXParameter API.
 
-Your task is to rebuild the application flow by pasting the snippet below into `app/parameter_manifest.c`.
-The snippet is intentionally kept in the README so you can read the sequence before editing the C file.
+The app starts with three missing pieces:
 
-## What to do
+- `app/manifest.json` does not yet declare the `ParameterManifest` parameter.
+- `app/Makefile` links GLib, but not `axparameter` yet.
+- `app/parameter_manifest.c` is a small TODO skeleton.
 
-1. Open `app/parameter_manifest.c`.
-2. Replace the skeleton implementation with the code from **Implementation snippet** below.
-3. Read through the code and identify the API setup, runtime loop, and cleanup flow.
-4. Build the package with the commands in **Build**.
+Complete the exercise by following the six steps below.
 
+## Step 1: Add the parameter to manifest.json
 
-## Implementation snippet
+Open `app/manifest.json`.
 
-Paste this into `app/parameter_manifest.c`:
+Inside `acapPackageConf`, after the `setup` object, add the `configuration` block below. Remember to add a comma after the closing brace of `setup`.
+
+```json
+,
+"configuration": {
+    "paramConfig": [
+        {
+            "name": "ParameterManifest",
+            "default": "no",
+            "type": "string"
+        }
+    ]
+}
+```
+
+The final structure should be:
+
+```json
+"acapPackageConf": {
+    "setup": {
+        "...": "..."
+    },
+    "configuration": {
+        "paramConfig": [
+            {
+                "name": "ParameterManifest",
+                "default": "no",
+                "type": "string"
+            }
+        ]
+    }
+}
+```
+
+## Step 2: Add AXParameter to the Makefile
+
+Open `app/Makefile`.
+
+Find this line:
+
+```make
+PKGS = gio-2.0 gio-unix-2.0
+```
+
+Add `axparameter` to the end:
+
+```make
+PKGS = gio-2.0 gio-unix-2.0 axparameter
+```
+
+`gio-2.0` and `gio-unix-2.0` are already needed for the GLib main loop and Unix signal handling. `axparameter` adds the headers and linker flags for the AXParameter library.
+
+## Step 3: Add headers and constants
+
+Open `app/parameter_manifest.c`.
+
+Replace the current includes and `APP_NAME` setup with:
 
 ```c
 #include <axsdk/axparameter.h>
 #include <glib-unix.h>
-#include <stdbool.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <string.h>
 #include <syslog.h>
 
 #define APP_NAME "parameter_manifest"
+```
 
+## Step 4: Add the signal handler
 
+Paste this below the `APP_NAME` definition:
 
+```c
 static gboolean signal_handler(gpointer loop) {
     g_main_loop_quit((GMainLoop*)loop);
     syslog(LOG_INFO, "Application was stopped by SIGTERM or SIGINT.");
     return G_SOURCE_REMOVE;
 }
-// Print an error to syslog and exit the application if a fatal error occurs.
-__attribute__((noreturn)) __attribute__((format(printf, 1, 2))) static void
-panic(const char* format, ...) {
-    va_list arg;
-    va_start(arg, format);
-    vsyslog(LOG_ERR, format, arg);
-    va_end(arg);
-    exit(1);
+```
+
+## Step 5: Add the parameter callback
+
+Paste this below `signal_handler()`:
+
+```c
+static void acap_parameter_changed(const gchar* name, const gchar* value, gpointer user_data) {
+    (void)user_data;
+
+    const char* prefix = "root." APP_NAME ".";
+    const char* short_name = g_str_has_prefix(name, prefix) ? name + strlen(prefix) : name;
+
+    syslog(LOG_INFO, "%s was changed to '%s'", short_name, value);
 }
+```
 
+This callback runs when the `ParameterManifest` parameter changes from the app settings page or VAPIX.
 
-static void acap_parameter_changed(const gchar* name, const gchar* value, gpointer handle_void_ptr){
+## Step 6: Replace main with the AXParameter flow
 
-    // This function is called when the parameter changes.
-    (void)handle_void_ptr; // Unused parameter, but required by the callback signature.
-    
-    const char* name_without_qualifiers = &name[strlen("root." APP_NAME ".")];
-    syslog(LOG_INFO, "%s was changed to '%s' just now", name_without_qualifiers, value);
+Replace the current `main()` function with:
 
-    //free(name_without_qualifiers);
-    //free(value);
-}
+```c
 int main(void) {
-    GError* error   = NULL;
+    GError* error = NULL;
     GMainLoop* loop = NULL;
 
     openlog(APP_NAME, LOG_PID, LOG_USER);
     syslog(LOG_INFO, "Starting %s", APP_NAME);
 
-    // 1. Create a new AXParameter handle.
     AXParameter* handle = ax_parameter_new(APP_NAME, &error);
-    if(handle == NULL)
-        panic("%s", error->message);
+    if (!handle) {
+        syslog(LOG_ERR, "ax_parameter_new failed");
+        return EXIT_FAILURE;
+    }
 
-    syslog(LOG_INFO, "Starting handle");
+    ax_parameter_register_callback(handle, "ParameterManifest", acap_parameter_changed, NULL, &error);
 
-    // 2. Act on changes to IsCustomized as soon as they happen.
-    if(!ax_parameter_register_callback(handle, "ParameterManifest", acap_parameter_changed, NULL, &error))
-        panic("%s", error->message);
-    
-    // 3. Start listening to callbacks by launching a GLib main loop.
     loop = g_main_loop_new(NULL, FALSE);
-
     g_unix_signal_add(SIGTERM, signal_handler, loop);
     g_unix_signal_add(SIGINT, signal_handler, loop);
     g_main_loop_run(loop);
 
-    
     g_main_loop_unref(loop);
     ax_parameter_free(handle);
+    closelog();
+    return EXIT_SUCCESS;
 }
 ```
 
@@ -99,11 +157,11 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera from the Apps page or with your usual ACAP install flow.
-If the application exposes HTTP endpoints or overlays, use the behavior described by the code comments and the parent module README to verify it.
+1. Install the `.eap` on the camera.
+2. Start the app.
+3. Open the app settings page and change `ParameterManifest`.
+4. Check syslog. You should see a message showing the new parameter value.
 
-## Reference
+You can compare your finished files with the complete example in:
 
-The complete version lives in the original `axis-acap-tip-workshop` repository under the same relative path:
-
-`parameter/parameter-manifest`
+`axis-acap-tip-workshop/parameter/parameter-manifest`

@@ -14,10 +14,12 @@ int main(void) {
 
     syslog(LOG_INFO, "parameter_manifest exercise skeleton started");
 
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
+    /* TODO 1: Add the ParameterManifest entry to manifest.json. */
+    /* TODO 2: Add axparameter to the Makefile PKGS line. */
+    /* TODO 3: Replace the includes and APP_NAME constant from README.md. */
+    /* TODO 4: Paste the signal handler from README.md. */
+    /* TODO 5: Paste the parameter callback from README.md. */
+    /* TODO 6: Replace this main() with the AXParameter setup, callback registration, loop, and cleanup. */
 
     syslog(LOG_INFO, "TODO: complete parameter_manifest.c using the README implementation snippet");
 

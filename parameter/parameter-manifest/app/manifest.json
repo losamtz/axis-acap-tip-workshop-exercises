@@ -23,15 +23,6 @@
                     "max": "13"
                 }
             ]
-        },
-        "configuration": {
-            "paramConfig": [
-                {
-                    "name": "ParameterManifest",
-                    "default": "no",
-                    "type": "string"
-                }
-            ]
         }
     }
 }
