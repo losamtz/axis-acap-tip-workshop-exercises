@@ -84,10 +84,12 @@ static larodModel* load_inference_model(larodConnection* conn, int* model_fd_out
 }
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    /* TODO 1: Initialize logging, signals, larod connection, and model. */
+    /* TODO 2: Read model input metadata and allocate output tensors. */
+    /* TODO 3: Create the matching RGB VDO stream. */
+    /* TODO 4: Create VDO-backed larod input tensors. */
+    /* TODO 5: Run the blocking VDO-to-larod inference loop. */
+    /* TODO 6: Clean up larod, VDO, mmap, and fd resources. */
 
     return 0;
 }

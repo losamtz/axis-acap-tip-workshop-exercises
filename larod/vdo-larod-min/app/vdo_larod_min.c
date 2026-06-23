@@ -561,10 +561,13 @@ static int track_vdo_buffer(larodConnection* conn,
  * ══════════════════════════════════════════════ */
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    /* TODO 1: Declare local pipeline resources and initialize logging/signals. */
+    /* TODO 2: Connect to larod, load the model, and read model input metadata. */
+    /* TODO 3: Allocate output tensors and create the backend-aware VDO stream. */
+    /* TODO 4: Decide whether preprocessing is needed and configure cpu-proc if needed. */
+    /* TODO 5: Create input tensor descriptors and start the non-blocking VDO stream. */
+    /* TODO 6: Poll frames, track VDO buffers, run preprocessing/inference jobs, and return buffers. */
+    /* TODO 7: Destroy larod jobs, tensors, models, VDO stream, mmap regions, and fds. */
 
     return 0;
 }

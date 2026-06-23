@@ -1,16 +1,5 @@
 {
     "schemaVersion": "2.0.0",
-    "resources": {
-        "linux": {
-            "user": {
-                "groups": ["video"]
-            }
-        },
-        "deepLearningProcessor": {
-            "enabled": true,
-            "required": true
-        }
-    },
     "acapPackageConf": {
         "setup": {
             "friendlyName": "vdo_larod_min_artpec8",

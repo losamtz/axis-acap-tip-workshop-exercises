@@ -46,10 +46,12 @@ static volatile sig_atomic_t running = 1;
 static void on_signal(int s) { (void)s; running = 0; }
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    /* TODO 1: Initialize logging, signals, and connect to larod. */
+    /* TODO 2: Load the inference model and read model input metadata. */
+    /* TODO 3: Allocate and mmap inference output tensors. */
+    /* TODO 4: Create the VDO stream and compare it with model input requirements. */
+    /* TODO 5: Configure cpu-proc preprocessing when format or size conversion is needed. */
+    /* TODO 6: Create input tensors, run preprocessing/inference, and clean up. */
 
     return 0;
 }
