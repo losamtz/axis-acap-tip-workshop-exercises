@@ -14,7 +14,27 @@ These files are kept complete:
 - `app/panic.c`
 - `app/panic.h`
 
-## Step 1: Add manifest configuration
+## Step 1: Add system parameter access to manifest.json
+
+Open `app/manifest.json`.
+
+After `schemaVersion`, add the `resources` block below. Remember to add a comma after the `schemaVersion` line and keep the comma after the closing brace of `resources`.
+
+```json
+"resources": {
+    "linux": {
+        "user": {
+            "groups": [
+                "admin"
+            ]
+        }
+    }
+},
+```
+
+This gives the application user access to the `admin` Linux group, which is required when the app updates device system parameters.
+
+## Step 2: Add manifest configuration
 
 Open `app/manifest.json` and add this `configuration` object inside `acapPackageConf`, after the `setup` object:
 
@@ -38,7 +58,7 @@ Open `app/manifest.json` and add this `configuration` object inside `acapPackage
 
 Keep the JSON comma between `setup` and `configuration` valid.
 
-## Step 2: Add AXParameter to the Makefile
+## Step 3: Add AXParameter to the Makefile
 
 Open `app/Makefile` and add `axparameter` to `PKGS`:
 
@@ -46,7 +66,7 @@ Open `app/Makefile` and add `axparameter` to `PKGS`:
 PKGS = glib-2.0 gio-2.0 axparameter
 ```
 
-## Step 3: Create the AXParameter handle
+## Step 4: Create the AXParameter handle
 
 Paste this at `TODO 3` in `main()`:
 
@@ -57,7 +77,7 @@ if (!axparameter) {
 }
 ```
 
-## Step 4: Register callbacks
+## Step 5: Register callbacks
 
 Paste this at `TODO 4`:
 
@@ -79,7 +99,7 @@ if (!ax_parameter_register_callback(axparameter,
 }
 ```
 
-## Step 5: Run the GLib loop and clean up
+## Step 6: Run the GLib loop and clean up
 
 Paste this at `TODO 5`:
 
@@ -92,6 +112,31 @@ g_main_loop_run(main_loop);
 g_main_loop_unref(main_loop);
 ax_parameter_free(axparameter);
 ```
+
+## Step 7: Fetch the app parameters from the settings page
+
+Open `app/html/js/onload.js`.
+
+Paste this where the file says `TODO`:
+
+```js
+const response = await fetch('/axis-cgi/param.cgi?action=list&group=parameter_custom_interface.*');
+```
+
+This uses `param.cgi` to read the app parameters when the custom settings page opens, so the form fields can show the current multicast address and port.
+
+## Step 8: Submit parameter updates from the settings page
+
+Open `app/html/js/submitForm.js`.
+
+Paste this where the file says `TODO`:
+
+```js
+const baseUrl = '/axis-cgi/param.cgi?action=update&';
+const root = 'root.Parameter_custom_interface.';
+```
+
+This builds the `param.cgi` update request used when the custom settings form is submitted.
 
 ## Build
 
@@ -106,4 +151,4 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the application, open the app settings page, change the multicast address or port, and inspect the application log. The callbacks should write the new values to the corresponding system parameters.
+Install the application, start it, and follow the [test guide](.test/test.md). The callbacks should write the new values to the corresponding system parameters.

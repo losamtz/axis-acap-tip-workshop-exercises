@@ -12,7 +12,27 @@ Open `app/Makefile` and add `axparameter` to `PKGS`:
 PKGS = gio-2.0 gio-unix-2.0 axparameter
 ```
 
-## Step 2: Add the parameter callback
+## Step 2: Add system parameter access to manifest.json
+
+Open `app/manifest.json`.
+
+After `schemaVersion`, add the `resources` block below. Remember to add a comma after the `schemaVersion` line and keep the comma after the closing brace of `resources`.
+
+```json
+"resources": {
+    "linux": {
+        "user": {
+            "groups": [
+                "admin"
+            ]
+        }
+    }
+},
+```
+
+This gives the application user access to the `admin` Linux group, which is required when the app needs to create, remove, and update parameters at runtime.
+
+## Step 3: Add the parameter callback
 
 Paste this callback at `TODO 2` in `app/parameter_runtime.c`:
 
@@ -26,7 +46,7 @@ static void acap_parameter_changed(const gchar* name,
 }
 ```
 
-## Step 3: Create the AXParameter handle
+## Step 4: Create the AXParameter handle
 
 Paste this in `main()` at `TODO 3`:
 
@@ -37,7 +57,7 @@ if (!handle) {
 }
 ```
 
-## Step 4: Add and change runtime parameters
+## Step 5: Add and change runtime parameters
 
 Paste this at `TODO 4`:
 
@@ -51,7 +71,7 @@ set_parameter(handle, "ParameterRuntime", "yes");
 print_parameters(handle);
 ```
 
-## Step 5: Register callbacks
+## Step 6: Register callbacks
 
 Paste this at `TODO 5`:
 
@@ -65,7 +85,7 @@ if (!ax_parameter_register_callback(handle,
 }
 ```
 
-## Step 6: Run the GLib loop and clean up
+## Step 7: Run the GLib loop and clean up
 
 Paste this at `TODO 6`:
 
@@ -92,4 +112,4 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the application, start it, and check the application log. You should see the runtime parameters being added, listed, modified, and listened to for later changes.
+Install the application, start it, and follow the [test guide](.test/test.md). You should see the runtime parameters being added, listed, modified, and listened to for later changes.

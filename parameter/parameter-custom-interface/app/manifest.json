@@ -1,21 +1,12 @@
 {
     "schemaVersion": "2.0.0",
-    "resources": {
-        "linux": {
-            "user": {
-                "groups": [
-                    "admin"
-                ]
-            }
-        }
-    },
     "acapPackageConf": {
         "setup": {
             "friendlyName": "Parameter custom interface",
             "appName": "parameter_custom_interface",
             "vendor": "Axis Communications",
-            "vendorId": "6f16357ced",
-            "appId": "415712",
+            "vendorId": "1234567890",
+            "vendorUrl": "https://www.axis.com",
             "runMode": "never",
             "version": "1.0.0",
             "compatibleOsVersions": [

@@ -2,8 +2,7 @@ document.getElementById('settingsForm').addEventListener('submit', async functio
     event.preventDefault(); // Prevent default form submission
 
     const formData = new FormData(event.target);
-    const baseUrl = '/axis-cgi/param.cgi?action=update&';
-    const root = 'root.Parameter_custom_interface.';
+    // TODO: Add the param.cgi update URL and application parameter root.
 
     let fullUrl = await urlBuilder(formData, baseUrl, root);
 

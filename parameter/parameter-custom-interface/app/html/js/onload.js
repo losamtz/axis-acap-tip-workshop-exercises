@@ -1,5 +1,5 @@
 window.onload = async function () {
-    const response = await fetch('/axis-cgi/param.cgi?action=list&group=parameter_custom_interface.*');
+    // TODO: Fetch the application parameters with param.cgi.
     if (!response.ok) {
         alert('Network response was not ok');
         return;
@@ -25,4 +25,3 @@ window.onload = async function () {
     document.getElementById('multicastAddress').value = result['MulticastAddress'];
     document.getElementById('multicastPort').value = result['MulticastPort'];
 };
-

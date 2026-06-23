@@ -37,7 +37,13 @@ int main(void) {
 
     /* TODO 5: Register the ParameterManifest callback here. */
 
-    /* TODO 6: Create the GLib main loop, register signals, run, then clean up. */
+    loop = g_main_loop_new(NULL, FALSE);
+    g_unix_signal_add(SIGTERM, signal_handler, loop);
+    g_unix_signal_add(SIGINT, signal_handler, loop);
+    g_main_loop_run(loop);
+
+    g_main_loop_unref(loop);
+    ax_parameter_free(handle);
 
     closelog();
     return EXIT_SUCCESS;

@@ -9,7 +9,7 @@ The app starts with four missing pieces:
 - `app/Makefile` links GLib, but not `axparameter` yet.
 - `app/parameter_manifest.c` contains the basic includes and signal handler, but the AXParameter flow is incomplete.
 
-Complete the exercise by following the seven steps below.
+Complete the exercise by following the six steps below.
 
 ## Step 1: Add system parameter access to manifest.json
 
@@ -147,22 +147,6 @@ ax_parameter_register_callback(handle, "ParameterManifest", acap_parameter_chang
 ```
 
 This connects changes to `ParameterManifest` with the callback function you added in Step 4.
-
-## Step 7: Run the main loop and clean up
-
-Paste this where the file says `TODO 6`:
-
-```c
-loop = g_main_loop_new(NULL, FALSE);
-g_unix_signal_add(SIGTERM, signal_handler, loop);
-g_unix_signal_add(SIGINT, signal_handler, loop);
-g_main_loop_run(loop);
-
-g_main_loop_unref(loop);
-ax_parameter_free(handle);
-```
-
-The GLib main loop keeps the application alive so the callback can run. The signal handler is already included in the C file.
 
 ## Build
 
