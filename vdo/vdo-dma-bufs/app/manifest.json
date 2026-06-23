@@ -1,0 +1,26 @@
+{
+    "schemaVersion": "2.0.0",
+    "resources": {
+        "linux": {
+            "user": {
+                "groups": ["video"]
+            }
+        }
+    },
+    "acapPackageConf": {
+        "setup": {
+            "friendlyName": "vdo dma buffers",
+            "appName": "vdo_dma_bufs",
+            "appId": "415733",
+            "vendor": "Axis Communications",
+            "vendorId": "6f16357ced",
+            "runMode": "never",
+            "version": "1.0.0",
+            "compatibleOsVersions": [
+                {
+                    "max": "13"
+                }
+            ]
+        }
+    }
+}

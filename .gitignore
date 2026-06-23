@@ -1,0 +1,14 @@
+
+# macOS cruft
+.DS_Store
+**/.DS_Store
+
+# Ignore everything in any build/ dir…
+**/build/**
+# …but keep the dir itself so we can unignore files inside:
+!**/build/
+# …and keep .eap files in build/ (top-level and nested)
+!**/build/*.eap
+
+# Ignore Python virtual environments
+**/.venv

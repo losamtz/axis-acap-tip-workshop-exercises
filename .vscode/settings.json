@@ -1,0 +1,15 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["**/manifest.json*"],
+      "url": "/opt/axis/acapsdk/axis-acap-manifest-tools/schema/schemas/v1/manifest.schema.json"
+    }
+  ],
+  "files.associations": {
+    "system_error": "c",
+    "cstdint": "c"
+  },
+
+  "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools",
+  "makefile.configureOnOpen": true
+}

@@ -1,0 +1,37 @@
+{
+    "schemaVersion": "2.0.0",
+    "resources": {
+        "linux": {
+            "user": {
+                "groups": [
+                    "admin"
+                ]
+            }
+        }
+    },
+    "acapPackageConf": {
+        "setup": {
+            "friendlyName": "parameter manifest",
+            "appName": "parameter_manifest",
+            "appId": "415709",
+            "vendor": "Andrés",
+            "vendorId": "6f16357ced",
+            "runMode": "never",
+            "version": "1.0.0",
+            "compatibleOsVersions": [
+                {
+                    "max": "13"
+                }
+            ]
+        },
+        "configuration": {
+            "paramConfig": [
+                {
+                    "name": "ParameterManifest",
+                    "default": "no",
+                    "type": "string"
+                }
+            ]
+        }
+    }
+}
