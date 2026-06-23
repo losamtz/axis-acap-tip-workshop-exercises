@@ -1,73 +1,27 @@
 # Larod Preprocessing Exercise
 
-This exercise is based on the corresponding complete example in `axis-acap-tip-workshop`.
-The source file `app/larod_preprocessing.c` has been reduced to a small TODO skeleton.
+This exercise is based on `larod/larod-preprocessing` from the complete `axis-acap-tip-workshop` repository.
 
-Your task is to rebuild the application flow by pasting the snippet below into `app/larod_preprocessing.c`.
-The snippet is intentionally kept in the README so you can read the sequence before editing the C file.
+`app/larod_preprocessing.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
 
-## What to do
+## Step 1: Review manifest configuration
 
-1. Open `app/larod_preprocessing.c`.
-2. Replace the skeleton implementation with the code from **Implementation snippet** below.
-3. Read through the code and identify the API setup, runtime loop, and cleanup flow.
-4. Build the package with the commands in **Build**.
+This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
 
+## Step 2: Add build dependencies
 
-## Implementation snippet
+Open `app/Makefile` and replace the TODO `PKGS` line with:
 
-Paste this into `app/larod_preprocessing.c`:
+```make
+PKGS = gio-2.0 gio-unix-2.0 liblarod vdostream
+```
+
+## Step 3: Add main setup snippet
+
+Paste this into `main()` at the next TODO position:
 
 ```c
-/**
- * larod_preprocessing.c
- *
- * Minimal VDO + larod with preprocessing.
- * VDO delivers 720p. Preprocessing resizes to model resolution.
- * Blocking VDO, single file.
- *
- * Input tensors are ALWAYS created manually with larodCreateTensors,
- * matching the original vdo-larod example pattern.
- * They describe the VDO frame layout and are used as input to either:
- *   - the preprocessing model (if VDO size/format ≠ model)
- *   - the inference model directly (if VDO matches model exactly)
- */
-
-#include <errno.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <syslog.h>
-#include <unistd.h>
-
-#include "larod.h"
-#include "vdo-buffer.h"
-#include "vdo-error.h"
-#include "vdo-frame.h"
-#include "vdo-map.h"
-#include "vdo-stream.h"
-#include "vdo-types.h"
-
-#include <glib.h>
-
-/* ── Configuration ── */
-#define DEVICE_NAME  "a9-dlpu-tflite"
-#define MODEL_PATH   "/usr/local/packages/larod_preprocessing/model/model.tflite"
-#define VDO_WIDTH    640
-#define VDO_HEIGHT   360
-#define VDO_FMT      VDO_FORMAT_RGB    /* or VDO_FORMAT_YUV for NV12 */
-#define IMAGE_FIT    "scale"
-#define NUM_BUFFERS  2
-#define VDO_CHANNEL  1
-
-static volatile sig_atomic_t running = 1;
-static void on_signal(int s) { (void)s; running = 0; }
-
-int main(void) {
-    larodConnection* conn  = NULL;
+larodConnection* conn  = NULL;
     larodError*      error = NULL;
 
     openlog("larod_preprocessing", LOG_PID | LOG_CONS, LOG_USER);
@@ -81,8 +35,14 @@ int main(void) {
         syslog(LOG_ERR, "larodConnect: %s", error->msg);
         return EXIT_FAILURE;
     }
+```
 
-    /* ════════════════════════════════════════════
+## Step 4: Add main configuration snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ════════════════════════════════════════════
      *  2. LOAD INFERENCE MODEL + READ METADATA
      * ════════════════════════════════════════════ */
     int model_fd = open(MODEL_PATH, O_RDONLY);
@@ -98,8 +58,14 @@ int main(void) {
         return EXIT_FAILURE;
     }
     syslog(LOG_INFO, "Model loaded on %s", DEVICE_NAME);
+```
 
-    /* Read model input dimensions + pitch from temporary tensors */
+## Step 5: Add main runtime flow snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* Read model input dimensions + pitch from temporary tensors */
     size_t tmp_num_in = 0;
     larodTensor** tmp_in = larodAllocModelInputs(conn, model, 0, &tmp_num_in, NULL, &error);
     const larodTensorDims* model_dims = larodGetTensorDims(tmp_in[0], &error);
@@ -124,8 +90,14 @@ int main(void) {
         larodGetTensorFdSize(out_tensors[i], &sz, &error);
         out_data[i] = mmap(NULL, sz, PROT_READ, MAP_SHARED, fd, 0);
     }
+```
 
-    /* ════════════════════════════════════════════
+## Step 6: Add main processing loop snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ════════════════════════════════════════════
      *  4. CREATE VDO STREAM (blocking, 720p)
      * ════════════════════════════════════════════ */
     VdoMap* settings = vdo_map_new();
@@ -144,8 +116,14 @@ int main(void) {
         syslog(LOG_ERR, "vdo_stream_new: %s", vdo_err->message);
         return EXIT_FAILURE;
     }
+```
 
-    /* Read back actual VDO stream properties */
+## Step 7: Add main cleanup snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* Read back actual VDO stream properties */
     VdoMap* info = vdo_stream_get_info(stream, &vdo_err);
     unsigned int vdo_w     = vdo_map_get_uint32(info, "width", 0);
     unsigned int vdo_h     = vdo_map_get_uint32(info, "height", 0);
@@ -166,8 +144,14 @@ int main(void) {
                     vdo_h != model_h);
 
     syslog(LOG_INFO, "Preprocessing: %s", need_pp ? "YES" : "NO");
+```
 
-    /* ════════════════════════════════════════════
+## Step 8: Add main workflow part 6 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ════════════════════════════════════════════
      *  6. SET UP PREPROCESSING MODEL (if needed)
      * ════════════════════════════════════════════ */
     larodModel*   pp_model = NULL;
@@ -199,8 +183,14 @@ int main(void) {
 
         syslog(LOG_INFO, "PP: %s %ux%u → RGB %ux%u", in_fmt, vdo_w, vdo_h, model_w, model_h);
     }
+```
 
-    /* ════════════════════════════════════════════
+## Step 9: Add main workflow part 7 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ════════════════════════════════════════════
      *  7. CREATE INPUT TENSORS (always manual)
      *
      *  From the original model.c:
@@ -216,8 +206,14 @@ int main(void) {
      *  even when VDO delivers RGB that matches
      *  the model format.
      * ════════════════════════════════════════════ */
+```
 
-    /* Pick layout based on what VDO delivers */
+## Step 10: Add main workflow part 8 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* Pick layout based on what VDO delivers */
     larodTensorLayout vdo_layout;
     const char* layout_str;
     switch (vdo_fmt) {
@@ -245,8 +241,14 @@ int main(void) {
     for (int i = 0; i < NUM_BUFFERS; i++) {
         duped_fds[i]       = -1;
         tracked_vdo_fds[i] = -1;
+```
 
-        vdo_tensors[i] = larodCreateTensors(1, &error);
+## Step 11: Add main workflow part 9 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+vdo_tensors[i] = larodCreateTensors(1, &error);
         if (!vdo_tensors[i]) {
             syslog(LOG_ERR, "larodCreateTensors[%d]: %s", i, error->msg);
             return EXIT_FAILURE;
@@ -260,8 +262,14 @@ int main(void) {
     }
     syslog(LOG_INFO, "Created %d input tensors (%s %ux%u pitch=%u)",
            NUM_BUFFERS, layout_str, vdo_w, vdo_h, vdo_pitch);
+```
 
-    /* ════════════════════════════════════════════
+## Step 12: Add main workflow part 10 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ════════════════════════════════════════════
      *  8. START VDO + MAIN LOOP
      * ════════════════════════════════════════════ */
     vdo_stream_start(stream, &vdo_err);
@@ -277,8 +285,14 @@ int main(void) {
         if (!buf) continue;
 
         int vdo_fd = vdo_buffer_get_fd(buf);
+```
 
-        /* ── Track buffer (once per VDO buffer fd) ── */
+## Step 13: Add main workflow part 11 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ── Track buffer (once per VDO buffer fd) ── */
         int slot = -1;
         for (int i = 0; i < NUM_BUFFERS; i++) {
             if (tracked_vdo_fds[i] == vdo_fd) { slot = i; break; }
@@ -301,8 +315,14 @@ int main(void) {
             duped_fds[slot] = duped;
             syslog(LOG_INFO, "Tracked buffer slot %d", slot);
         }
+```
 
-        if (need_pp) {
+## Step 14: Add main workflow part 12 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+if (need_pp) {
             /* ── Preprocess: VDO frame → model resolution ── */
             if (!pp_job) {
                 pp_job = larodCreateJobRequest(pp_model,
@@ -318,8 +338,14 @@ int main(void) {
                 vdo_stream_buffer_unref(stream, &buf, &vdo_err);
                 continue;
             }
+```
 
-            /* ── Infer: PP output → model ── */
+## Step 15: Add main workflow part 13 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ── Infer: PP output → model ── */
             if (!inf_job) {
                 inf_job = larodCreateJobRequest(model,
                               pp_out, pp_num_out,
@@ -344,8 +370,14 @@ int main(void) {
             vdo_stream_buffer_unref(stream, &buf, &vdo_err);
             continue;
         }
+```
 
-        /* ── Read results ── */
+## Step 16: Add main workflow part 14 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ── Read results ── */
         uint8_t* person = (uint8_t*)out_data[0];
         uint8_t* car    = (uint8_t*)out_data[1];
         syslog(LOG_INFO, "Person: %.1f%% — Car: %.1f%%",
@@ -375,7 +407,6 @@ int main(void) {
     syslog(LOG_INFO, "Done");
     closelog();
     return EXIT_SUCCESS;
-}
 ```
 
 ## Build
@@ -391,11 +422,8 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera from the Apps page or with your usual ACAP install flow.
-If the application exposes HTTP endpoints or overlays, use the behavior described by the code comments and the parent module README to verify it.
+Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
 
 ## Reference
 
-The complete version lives in the original `axis-acap-tip-workshop` repository under the same relative path:
-
-`larod/larod-preprocessing`
+Complete source: `larod/larod-preprocessing` in `axis-acap-tip-workshop`.

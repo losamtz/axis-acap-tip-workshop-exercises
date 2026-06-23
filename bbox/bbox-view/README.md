@@ -1,104 +1,27 @@
 # Bbox View Exercise
 
-This exercise is based on the corresponding complete example in `axis-acap-tip-workshop`.
-The source file `app/bbox_view.c` has been reduced to a small TODO skeleton.
+This exercise is based on `bbox/bbox-view` from the complete `axis-acap-tip-workshop` repository.
 
-Your task is to rebuild the application flow by pasting the snippet below into `app/bbox_view.c`.
-The snippet is intentionally kept in the README so you can read the sequence before editing the C file.
+`app/bbox_view.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
 
-## What to do
+## Step 1: Review manifest configuration
 
-1. Open `app/bbox_view.c`.
-2. Replace the skeleton implementation with the code from **Implementation snippet** below.
-3. Read through the code and identify the API setup, runtime loop, and cleanup flow.
-4. Build the package with the commands in **Build**.
+This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
 
+## Step 2: Add build dependencies
 
-## Implementation snippet
+Open `app/Makefile` and replace the TODO `PKGS` line with:
 
-Paste this into `app/bbox_view.c`:
+```make
+PKGS = bbox gio-2.0 glib-2.0
+```
+
+## Step 3: Add main setup snippet
+
+Paste this into `main()` at the next TODO position:
 
 ```c
-#include <bbox.h>
-#include <glib-unix.h>
-#include <glib.h>
-#include <errno.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <syslog.h>
-#include <unistd.h>
-
-
-__attribute__((noreturn)) __attribute__((format(printf, 1, 2))) static void
-panic(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    vsyslog(LOG_ERR, format, args);
-    va_end(args);
-
-    exit(EXIT_FAILURE);
-}
-
-
-static void single_channel(void) {
-    // Draw on a single view: 1
-    bbox_t* bbox = bbox_view_new(1u);
-    if (!bbox)
-        panic("Failed creating: %s", strerror(errno));
-
-    
-    //bbox_coordinates_frame_normalized(bbox);
-
-    bbox_clear(bbox);  // Remove all old bounding-boxes
-
-    // Create all needed colors [These operations are slow!]
-    const bbox_color_t red   = bbox_color_from_rgb(0xff, 0x00, 0x00);
-    //const bbox_color_t blue  = bbox_color_from_rgb(0x00, 0x00, 0xff);
-    //const bbox_color_t green = bbox_color_from_rgb(0x00, 0xff, 0x00);
-
-    bbox_style_outline(bbox);                      
-    bbox_thickness_thin(bbox);                     
-    bbox_color(bbox, red);                         
-    bbox_rectangle(bbox, 0.05, 0.05, 0.95, 0.95);  
-
-    // Draw all queued geometry simultaneously
-    if (!bbox_commit(bbox, 0u))
-        panic("Failed committing: %s", strerror(errno));
-
-}
-
-
-static void clear(void) {
-    // Draw on a single channel: 1
-    bbox_t* bbox = bbox_new(1u, 1u);
-    if (!bbox)
-        panic("Failed creating: %s", strerror(errno));
-
-    bbox_clear(bbox);  // Remove all old bounding-boxes
-
-    // Clear everything simultaneously
-    if (!bbox_commit(bbox, 0u))
-        panic("Failed committing: %s", strerror(errno));
-
-    
-    bbox_destroy(bbox);
-}
-static gboolean signal_handler(gpointer loop) {
-    g_main_loop_quit((GMainLoop*)loop);
-    clear();
-    syslog(LOG_INFO, "Application was stopped by SIGTERM or SIGINT.");
-
-    return G_SOURCE_REMOVE;
-}
-
-
-int main(void) {
-    GMainLoop *loop = NULL;
+GMainLoop *loop = NULL;
 
     openlog(NULL, LOG_PID, LOG_USER);
 
@@ -115,7 +38,6 @@ int main(void) {
     clear();
 
     return EXIT_SUCCESS;
-}
 ```
 
 ## Build
@@ -131,11 +53,8 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera from the Apps page or with your usual ACAP install flow.
-If the application exposes HTTP endpoints or overlays, use the behavior described by the code comments and the parent module README to verify it.
+Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
 
 ## Reference
 
-The complete version lives in the original `axis-acap-tip-workshop` repository under the same relative path:
-
-`bbox/bbox-view`
+Complete source: `bbox/bbox-view` in `axis-acap-tip-workshop`.

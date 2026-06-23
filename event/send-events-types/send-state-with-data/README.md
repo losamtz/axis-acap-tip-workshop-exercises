@@ -1,193 +1,29 @@
 # Send State With Data Exercise
 
-This exercise is based on the corresponding complete example in `axis-acap-tip-workshop`.
-The source file `app/send_state_with_data.c` has been reduced to a small TODO skeleton.
+This exercise is based on `event/send-events-types/send-state-with-data` from the complete `axis-acap-tip-workshop` repository.
 
-Your task is to rebuild the application flow by pasting the snippet below into `app/send_state_with_data.c`.
-The snippet is intentionally kept in the README so you can read the sequence before editing the C file.
+`app/send_state_with_data.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
 
-## What to do
+## Step 1: Add build dependencies
 
-1. Open `app/send_state_with_data.c`.
-2. Replace the skeleton implementation with the code from **Implementation snippet** below.
-3. Read through the code and identify the API setup, runtime loop, and cleanup flow.
-4. Build the package with the commands in **Build**.
+Open `app/Makefile` and replace the TODO `PKGS` line with:
 
+```make
+PKGS = glib-2.0 axevent gio-2.0 libcurl jansson
+```
 
-## Implementation snippet
+## Step 2: Add main setup snippet
 
-Paste this into `app/send_state_with_data.c`:
+Paste this into `main()` at the next TODO position:
 
 ```c
-/**
- * Copyright (C) 2021, Axis Communications AB, Lund, Sweden
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-
-#include <stdio.h>
-#include <syslog.h>
-#include <time.h>
-#include <axsdk/axevent.h>
-#include <glib-object.h>
-#include <glib.h>
-
-#define LOG(fmt, args...)    { syslog(LOG_INFO, fmt, ## args); printf(fmt, ## args); }
-#define LOG_ERROR(fmt, args...)    { syslog(LOG_CRIT, fmt, ## args); printf(fmt, ## args); }
-
-typedef struct {
-    AXEventHandler* event_handler;
-    guint event_id;
-    guint timer;
-    guint value;
-} AppData;
-
-static AppData* app_data = NULL;
-
-
-/**
- * brief Send event.
- *
- * Send the previously declared event.
- *
- * param send_data Application data containing e.g. the event declaration id.
- * return TRUE
- */
-static gboolean send_event(AppData* send_data) {
-   AXEventKeyValueSet *key_value_set = NULL;
-    AXEvent  *event                   = NULL;
-    //GDateTime *time_stamp;
-    
-    key_value_set = ax_event_key_value_set_new();
-
-    ax_event_key_value_set_add_key_value( key_value_set, "active", NULL, &send_data->value, AX_VALUE_TYPE_BOOL, NULL);
-    ax_event_key_value_set_add_key_value(key_value_set, "triggerTime", NULL, "today", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_add_key_value(key_value_set, "classTypes", NULL, "car", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_add_key_value(key_value_set, "scenarioType",NULL, "scenario1", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_add_key_value(key_value_set, "objectId", NULL, "1", AX_VALUE_TYPE_STRING, NULL);
-
-
-    //time_stamp = g_date_time_new_now_local();
-
-    // Create the event
-    // Use ax_event_new2 since ax_event_new is deprecated from 3.2
-    event = ax_event_new2(key_value_set, NULL);
-    
-    // The key/value set is no longer needed
-    ax_event_key_value_set_free(key_value_set);
-
-    if(!ax_event_handler_send_event(send_data->event_handler, send_data->event_id, event, NULL))
-      LOG_ERROR("Could not fire event\n");
-    ax_event_free(event);
-    //g_date_time_unref(time_stamp);
-
-
-    send_data->value = !send_data->value;
-    
-    // Returning TRUE keeps the timer going
-    return TRUE;
-}
-
-
-static void declaration_complete(guint declaration, int *value) {
-  syslog(LOG_INFO, "Declaration complete for: %d", declaration);
-
-    app_data->value = *value;
-
-    // Set up a timer to be called every 10th second
-    app_data->timer = g_timeout_add_seconds(5, (GSourceFunc)send_event, app_data);
-}
-
-
-static guint setup_declaration(AXEventHandler* event_handler, guint *start_value) {
-    AXEventKeyValueSet* key_value_set = NULL;
-    guint declaration                 = 0;
-    GError* error                     = NULL;
-
-    // Create keys, namespaces and nice names for the event
-    key_value_set = ax_event_key_value_set_new();
-
-    ax_event_key_value_set_add_key_value(key_value_set,
-                                         "topic0",
-                                         "tnsaxis",
-                                         "CameraApplicationPlatform",
-                                         AX_VALUE_TYPE_STRING,
-                                         NULL);
-    ax_event_key_value_set_add_key_value(key_value_set,
-                                         "topic1",
-                                         "tnsaxis",
-                                         "ObjectAnalytics", /*  If key value is = ObjectAnalytics then the declared key_value_set won't be visible in UI / same as AOA . If SendStateWithData then key_value_set will appear in UI*/
-                                         AX_VALUE_TYPE_STRING,
-                                         NULL);
-    
-    //TOPIC LEVEL 2
-    ax_event_key_value_set_add_key_value(  key_value_set, "topic2", "tnsaxis", "SendStateWithDataEvent" , AX_VALUE_TYPE_STRING,NULL);
-    ax_event_key_value_set_add_nice_names( key_value_set, "topic2", "tnsaxis", "SendStateWithDataEvent", "Send State With Data Event", NULL);
-
-    // marked as data
-    //ax_event_key_value_set_mark_as_user_defined( key_value_set, "topic2", "tnsaxis", "isApplicationData", NULL);
-
-    ax_event_key_value_set_add_key_value( key_value_set, "active", NULL, &start_value, AX_VALUE_TYPE_BOOL, NULL);    
-    ax_event_key_value_set_mark_as_data(key_value_set, "active", NULL, NULL);
-
-    // Shouldn't show isPropertyState
-    ax_event_key_value_set_add_key_value(key_value_set, "triggerTime", NULL, "", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_mark_as_data(key_value_set, "triggerTime", NULL, NULL);
-    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "triggerTime", NULL, "isApplicationData", NULL);
-
-    ax_event_key_value_set_add_key_value(key_value_set, "classTypes", NULL, "", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_mark_as_data(key_value_set, "classTypes", NULL, NULL);
-    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "classTypes", NULL, "isApplicationData", NULL);
-
-    ax_event_key_value_set_add_key_value(key_value_set, "scenarioType",NULL, "", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_mark_as_data(key_value_set, "scenarioType", NULL, NULL);
-    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "scenarioType", NULL, "isApplicationData", NULL);
-
-    ax_event_key_value_set_add_key_value(key_value_set, "objectId", NULL, "", AX_VALUE_TYPE_STRING, NULL);
-    ax_event_key_value_set_mark_as_data(key_value_set, "objectId", NULL, NULL);
-    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "objectId", NULL, "isApplicationData", NULL);
-
-    // Declare event
-    if (!ax_event_handler_declare2(event_handler,
-                                  key_value_set,
-                                  FALSE,  // Indicate a property state event
-                                  "active",
-                                  &declaration,
-                                  (AXDeclarationCompleteCallback)declaration_complete,
-                                  start_value,
-                                  &error)) {
-        syslog(LOG_WARNING, "Could not declare: %s", error->message);
-        g_error_free(error);
-    }
-
-    // The key/value set is no longer needed
-    ax_event_key_value_set_free(key_value_set);
-    return declaration;
-}
-
-/**
- * brief Main function which sends an event.
- */
-gint main(void) {
-    GMainLoop* main_loop  = NULL;
+GMainLoop* main_loop  = NULL;
     guint start_value     = 0;
 
     // Set up the user logging to syslog
     openlog("send_state_with_data", LOG_PID|LOG_CONS, LOG_USER);
     syslog(LOG_INFO, "Started logging from send event application");
 
-    
     //Initialize the event handler
     app_data                = calloc(1, sizeof(AppData));
     app_data->event_handler = ax_event_handler_new();
@@ -195,7 +31,6 @@ gint main(void) {
 
     // main loop
     main_loop = g_main_loop_new( NULL, FALSE);
-        
 
     g_main_loop_run(main_loop);
 
@@ -208,7 +43,6 @@ gint main(void) {
     g_main_loop_unref(main_loop);
 
     return 0;
-}
 ```
 
 ## Build
@@ -224,11 +58,8 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera from the Apps page or with your usual ACAP install flow.
-If the application exposes HTTP endpoints or overlays, use the behavior described by the code comments and the parent module README to verify it.
+Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
 
 ## Reference
 
-The complete version lives in the original `axis-acap-tip-workshop` repository under the same relative path:
-
-`event/send-events-types/send-state-with-data`
+Complete source: `event/send-events-types/send-state-with-data` in `axis-acap-tip-workshop`.

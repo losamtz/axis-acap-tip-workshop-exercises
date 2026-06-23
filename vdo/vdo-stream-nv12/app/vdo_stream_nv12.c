@@ -1,26 +1,43 @@
-/*
- * Exercise skeleton for vdo_stream_nv12.
- *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
- */
+#include "vdo-error.h"
+#include "vdo-map.h"
+#include "vdo-stream.h"
+#include "vdo-types.h"
 
+#include <glib.h>
+#include <glib/gstdio.h>
+// Needed for g_autoptr
+#include <glib-object.h>
+#include <signal.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <syslog.h>
 
-int main(void) {
-    openlog("vdo_stream_nv12", LOG_PID, LOG_USER);
+#include "panic.h"
 
-    syslog(LOG_INFO, "vdo_stream_nv12 exercise skeleton started");
+#include <poll.h>
+#include <unistd.h>
 
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
+ 
 
-    syslog(LOG_INFO, "TODO: complete vdo_stream_nv12.c using the README implementation snippet");
+static int handle_vdo_failed(GError* error) {
+    // Maintenance/Installation in progress (e.g. Global-Rotation)
+    if (vdo_error_is_expected(&error)) {
+        syslog(LOG_INFO, "Expected vdo error %s", error->message);
+        return EXIT_SUCCESS;
+    } else {
+        panic("Unexpected vdo error %s", error->message);
+    }
+    return EXIT_FAILURE;
+}
 
-    closelog();
-    return EXIT_SUCCESS;
+int main(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
+
+    /* TODO 1: Review the README steps for manifest and Makefile changes. */
+    /* TODO 2: Paste the setup snippet into this main function. */
+    /* TODO 3: Paste the runtime/API workflow snippets in order. */
+    /* TODO 4: Paste the cleanup snippet at the end. */
+
+    return 0;
 }

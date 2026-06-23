@@ -1,26 +1,288 @@
-/*
- * Exercise skeleton for draw_rectangle.
+/**
+ * Copyright (C) 2021, Axis Communications AB, Lund, Sweden
  *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
+/**
+ * - draw rectangle normalized -
+ *
+ * This application demonstrates how the use the API axoverlay, by drawing
+ * plain boxes using 4-bit palette color format
+ *
+ * Colorspace and alignment:
+ * 1-bit palette (AXOVERLAY_COLORSPACE_1BIT_PALETTE): 32-byte alignment
+ * 4-bit palette (AXOVERLAY_COLORSPACE_4BIT_PALETTE): 16-byte alignment
+ * 
+ *
+ */
+
+#include <axoverlay.h>
+#include <cairo/cairo.h>
+#include <errno.h>
+#include <glib-unix.h>
+#include <glib.h>
 #include <stdlib.h>
 #include <syslog.h>
 
+#define PALETTE_VALUE_RANGE 255.0
+
+
+static gint overlay_id      = -1;
+//static gint top_color       =  1;
+//static gint bottom_color    =  3;
+static gint center_color    =  4;
+
+/***** Drawing functions *****************************************************/
+
+/**
+ * brief Converts palette color index to cairo color value.
+ *
+ * This function converts the palette index, which has been initialized by
+ * function axoverlay_set_palette_color to a value that can be used by
+ * function cairo_set_source_rgba.
+ *
+ * param color_index Index in the palette setup.
+ *
+ * return color value.
+ */
+static gdouble index2cairo(const gint color_index) {
+    return ((color_index << 4) + color_index) / PALETTE_VALUE_RANGE;
+}
+
+/**
+ * brief Draw a rectangle using palette.
+ *
+ * This function draws a rectangle with lines from coordinates
+ * left, top, right and bottom with a palette color index and
+ * line width.
+ *
+ * param context Cairo rendering context.
+ * param left Left coordinate (x1).
+ * param top Top coordinate (y1).
+ * param right Right coordinate (x2).
+ * param bottom Bottom coordinate (y2).
+ * param color_index Palette color index.
+ * param line_width Rectange line width.
+ */
+static void draw_rectangle(cairo_t* context,
+                           gint left,
+                           gint top,
+                           gint right,
+                           gint bottom,
+                           gint color_index,
+                           gint line_width) {
+    gdouble val = 0;
+
+    val = index2cairo(color_index);
+    cairo_set_source_rgba(context, val, val, val, val);
+    cairo_set_operator(context, CAIRO_OPERATOR_SOURCE);
+    cairo_set_line_width(context, line_width);
+    cairo_rectangle(context, left, top, right - left, bottom - top);
+    cairo_stroke(context);
+}
+/**
+ * brief Setup an overlay_data struct.
+ *
+ * This function initialize and setup an overlay_data
+ * struct with default values.
+ *
+ * param data The overlay data struct to initialize.
+ */
+static void setup_axoverlay_data(struct axoverlay_overlay_data* data) {
+    axoverlay_init_overlay_data(data);
+    data->postype         = AXOVERLAY_CUSTOM_NORMALIZED;
+    data->anchor_point    = AXOVERLAY_ANCHOR_CENTER;
+    data->x               = 0.0;
+    data->y               = 0.0;
+    data->scale_to_stream = FALSE;
+}
+
+/**
+ * brief Setup palette color table.
+ *
+ * This function initialize and setup an palette index
+ * representing ARGB values.
+ *
+ * param color_index Palette color index.
+ * param r R (red) value.
+ * param g G (green) value.
+ * param b B (blue) value.
+ * param a A (alpha) value.
+ *
+ * return result as boolean
+ */
+static gboolean setup_palette_color(const int index, const gint r, const gint g, const gint b, const gint a) {
+    GError* error = NULL;
+    struct axoverlay_palette_color color;
+
+    color.red      = r;
+    color.green    = g;
+    color.blue     = b;
+    color.alpha    = a;
+    color.pixelate = FALSE;
+    axoverlay_set_palette_color(index, &color, &error);
+    if (error != NULL) {
+        g_error_free(error);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+/***** Callback functions ****************************************************/
+
+/**
+ * brief A callback function called when an overlay needs adjustments.
+ *
+ * This function is called to let developers make adjustments to
+ * the size and position of their overlays for each stream. This callback
+ * function is called prior to rendering every time when an overlay
+ * is rendered on a stream, which is useful if the resolution has been
+ * updated or rotation has changed.
+ *
+ * param id Overlay id.
+ * param stream Information about the rendered stream.
+ * param postype The position type.
+ * param overlay_x The x coordinate of the overlay.
+ * param overlay_y The y coordinate of the overlay.
+ * param overlay_width Overlay width.
+ * param overlay_height Overlay height.
+ * param user_data Optional user data associated with this overlay.
+ */
+static void adjustment_cb(gint id,
+                          struct axoverlay_stream_data* stream,
+                          enum axoverlay_position_type* postype,
+                          gfloat* overlay_x,
+                          gfloat* overlay_y,
+                          gint* overlay_width,
+                          gint* overlay_height,
+                          gpointer user_data) {
+    /* Silence compiler warnings for unused parameters/arguments */
+    (void)id;
+    (void)postype;
+    (void)overlay_x;
+    (void)overlay_y;
+    (void)user_data;
+
+    /* Set overlay resolution in case of rotation */
+    *overlay_width  = stream->width;
+    *overlay_height = stream->height;
+    if (stream->rotation == 90 || stream->rotation == 270) {
+        *overlay_width  = stream->height;
+        *overlay_height = stream->width;
+    }
+
+    syslog(LOG_INFO,
+           "Stream or rotation changed, overlay resolution is now: %i x %i",
+           *overlay_width,
+           *overlay_height);
+    syslog(LOG_INFO,
+           "Stream or rotation changed, stream resolution is now: %i x %i",
+           stream->width,
+           stream->height);
+    syslog(LOG_INFO, "Stream or rotation changed, rotation angle is now: %i", stream->rotation);
+}
+
+
+static void render_overlay_cb(gpointer rendering_context,
+                              gint id,
+                              struct axoverlay_stream_data* stream,
+                              enum axoverlay_position_type postype,
+                              gfloat overlay_x,
+                              gfloat overlay_y,
+                              gint overlay_width,
+                              gint overlay_height,
+                              gpointer user_data) {
+    /* Silence compiler warnings for unused parameters/arguments */
+    (void)postype;
+    (void)user_data;
+    (void)overlay_x;
+    (void)overlay_y;
+
+    gdouble val = FALSE;
+
+    // setup for yellow rectangle
+    gint rect_width = overlay_width / 4;
+    gint rect_height = overlay_height / 4;
+
+    gint center_x = overlay_width / 2;
+    gint center_y = overlay_height / 2;
+
+    gint left = center_x - rect_width / 2;
+    gint top = center_y - rect_height / 2;
+    gint right = center_x + rect_width / 2;
+    gint bottom = center_y + rect_height / 2;
+
+
+    syslog(LOG_INFO, "Rendering overlay on ID=%d, stream ID=%d, and camera=%d", id, stream->id, stream->camera);                                
+    syslog(LOG_INFO, "Render callback for camera: %i", stream->camera);
+    syslog(LOG_INFO, "Render callback for overlay: %i x %i", overlay_width, overlay_height);
+    syslog(LOG_INFO, "Render callback for stream: %i x %i", stream->width, stream->height);
+    syslog(LOG_INFO, "Render callback for rotation: %i", stream->rotation);
+
+    if (id == overlay_id) {
+        //  Clear background by drawing a "filled" rectangle
+        val = index2cairo(0);
+        cairo_set_source_rgba(rendering_context, val, val, val, val);
+        cairo_set_operator(rendering_context, CAIRO_OPERATOR_SOURCE);
+        
+        // cairo_rectangle(cr, x, y, width, height);
+        // The X coordinate of the top-left corner.
+        // The Y coordinate of the top-left corner.
+        // The width of the rectangle to draw. => defined by AXOVERLAY_CAIRO_IMAGE_BACKEND
+        // The height of the rectangle to draw. => AXOVERLAY_CAIRO_IMAGE_BACKEND
+        cairo_rectangle(rendering_context, 0, 0, overlay_width, overlay_height); 
+        cairo_fill(rendering_context);
+
+        
+        // Draw a yellow centered rectangle
+        draw_rectangle(rendering_context, left, top, right, bottom, center_color, 3.0);
+
+    } else {
+        syslog(LOG_INFO, "Unknown overlay id!");
+    }
+}
+
+
+
+/***** Signal handler functions **********************************************/
+
+/**
+ * brief Handles the signals.
+ *
+ * param loop Loop to quit
+ */
+static gboolean signal_handler(gpointer loop) {
+    g_main_loop_quit((GMainLoop*)loop);
+    syslog(LOG_INFO, "Application was stopped by SIGTERM or SIGINT.");
+    return G_SOURCE_REMOVE;
+}
+
+/***** Main function *********************************************************/
+
+/**
+ * brief Main function.
+ *
+ * This main function draws one yellow rectangle, using the
+ * API axoverlay.
+ */
+
 int main(void) {
-    openlog("draw_rectangle", LOG_PID, LOG_USER);
+    /* TODO 1: Review the README steps for manifest and Makefile changes. */
+    /* TODO 2: Paste the setup snippet into this main function. */
+    /* TODO 3: Paste the runtime/API workflow snippets in order. */
+    /* TODO 4: Paste the cleanup snippet at the end. */
 
-    syslog(LOG_INFO, "draw_rectangle exercise skeleton started");
-
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
-
-    syslog(LOG_INFO, "TODO: complete draw_rectangle.c using the README implementation snippet");
-
-    closelog();
-    return EXIT_SUCCESS;
+    return 0;
 }

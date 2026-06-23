@@ -1,26 +1,264 @@
-/*
- * Exercise skeleton for draw_text.
+/**
+ * Copyright (C) 2021, Axis Communications AB, Lund, Sweden
  *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
+/**
+ * - axoverlay -
+ *
+ * This application demonstrates how the use the API axoverlay, by drawing
+ * plain boxes using 4-bit palette color format and text overlay using
+ * ARGB32 color format.
+ *
+ * Colorspace and alignment:
+ * 1-bit palette (AXOVERLAY_COLORSPACE_1BIT_PALETTE): 32-byte alignment
+ * 4-bit palette (AXOVERLAY_COLORSPACE_4BIT_PALETTE): 16-byte alignment
+ * ARGB32 (AXOVERLAY_COLORSPACE_ARGB32): 16-byte alignment
+ *
+ */
+
+#include <axoverlay.h>
+#include <cairo/cairo.h>
+#include <errno.h>
+#include <glib-unix.h>
+#include <glib.h>
 #include <stdlib.h>
 #include <syslog.h>
 
+
+typedef struct {
+    double r;
+    double g;
+    double b;
+} RGBColor;
+
+static RGBColor color;
+
+static gint animation_timer = -1;
+static gint overlay_id_text = -1;
+static gint counter         = 10;
+
+
+static void draw_text(cairo_t* context, const gint pos_x, const gint pos_y) {
+    cairo_text_extents_t te;
+    cairo_text_extents_t te_length;
+    gchar* str        = NULL;
+    gchar* str_length = NULL;
+
+    //  Show text in black
+    cairo_set_source_rgb(context, color.r, color.g, color.b);
+    cairo_select_font_face(context, "serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+    cairo_set_font_size(context, 32.0);
+
+    // Position the text at a fix centered position
+    str_length = g_strdup_printf("Countdown  ");
+    cairo_text_extents(context, str_length, &te_length);
+    cairo_move_to(context, pos_x - te_length.width / 2, pos_y);
+    g_free(str_length);
+
+    // Add the counter number to the shown text
+    str = g_strdup_printf("Countdown %i", counter);
+    cairo_text_extents(context, str, &te);
+    cairo_show_text(context, str);
+    g_free(str);
+}
+
+/**
+ * brief Setup an overlay_data struct.
+ *
+ * This function initialize and setup an overlay_data
+ * struct with default values.
+ *
+ * param data The overlay data struct to initialize.
+ */
+static void setup_axoverlay_data(struct axoverlay_overlay_data* data) {
+    axoverlay_init_overlay_data(data);
+    data->postype         = AXOVERLAY_CUSTOM_NORMALIZED;
+    data->anchor_point    = AXOVERLAY_ANCHOR_CENTER;
+    data->x               = 0.0;
+    data->y               = 0.0;
+    data->scale_to_stream = FALSE;
+}
+
+
+
+/***** Callback functions ****************************************************/
+
+/**
+ * brief A callback function called when an overlay needs adjustments.
+ *
+ * This function is called to let developers make adjustments to
+ * the size and position of their overlays for each stream. This callback
+ * function is called prior to rendering every time when an overlay
+ * is rendered on a stream, which is useful if the resolution has been
+ * updated or rotation has changed.
+ *
+ * param id Overlay id.
+ * param stream Information about the rendered stream.
+ * param postype The position type.
+ * param overlay_x The x coordinate of the overlay.
+ * param overlay_y The y coordinate of the overlay.
+ * param overlay_width Overlay width.
+ * param overlay_height Overlay height.
+ * param user_data Optional user data associated with this overlay.
+ */
+static void adjustment_cb(gint id,
+                          struct axoverlay_stream_data* stream,
+                          enum axoverlay_position_type* postype,
+                          gfloat* overlay_x,
+                          gfloat* overlay_y,
+                          gint* overlay_width,
+                          gint* overlay_height,
+                          gpointer user_data) {
+    /* Silence compiler warnings for unused parameters/arguments */
+    (void)id;
+    (void)postype;
+    (void)overlay_x;
+    (void)overlay_y;
+    (void)user_data;
+
+    /* Set overlay resolution in case of rotation */
+    *overlay_width  = stream->width;
+    *overlay_height = stream->height;
+    if (stream->rotation == 90 || stream->rotation == 270) {
+        *overlay_width  = stream->height;
+        *overlay_height = stream->width;
+    }
+
+    syslog(LOG_INFO,
+           "Stream or rotation changed, overlay resolution is now: %i x %i",
+           *overlay_width,
+           *overlay_height);
+    syslog(LOG_INFO,
+           "Stream or rotation changed, stream resolution is now: %i x %i",
+           stream->width,
+           stream->height);
+    syslog(LOG_INFO, "Stream or rotation changed, rotation angle is now: %i", stream->rotation);
+}
+
+/**
+ * brief A callback function called when an overlay needs to be drawn.
+ *
+ * This function is called whenever the system redraws an overlay. This can
+ * happen in two cases, axoverlay_redraw() is called or a new stream is
+ * started.
+ *
+ * param rendering_context A pointer to the rendering context.
+ * param id Overlay id.
+ * param stream Information about the rendered stream.
+ * param postype The position type.
+ * param overlay_x The x coordinate of the overlay.
+ * param overlay_y The y coordinate of the overlay.
+ * param overlay_width Overlay width.
+ * param overlay_height Overlay height.
+ * param user_data Optional user data associated with this overlay.
+ */
+static void render_overlay_cb(gpointer rendering_context,
+                              gint id,
+                              struct axoverlay_stream_data* stream,
+                              enum axoverlay_position_type postype,
+                              gfloat overlay_x,
+                              gfloat overlay_y,
+                              gint overlay_width,
+                              gint overlay_height,
+                              gpointer user_data) {
+    /* Silence compiler warnings for unused parameters/arguments */
+    (void)postype;
+    (void)user_data;
+    (void)overlay_x;
+    (void)overlay_y;
+
+
+    syslog(LOG_INFO, "Render callback for camera: %i", stream->camera);
+    syslog(LOG_INFO, "Render callback for overlay: %i x %i", overlay_width, overlay_height);
+    syslog(LOG_INFO, "Render callback for stream: %i x %i", stream->width, stream->height);
+    syslog(LOG_INFO, "Render callback for rotation: %i", stream->rotation);
+
+    if (id == overlay_id_text) {
+        //  Show text in black
+        draw_text(rendering_context, overlay_width / 2, overlay_height / 2);
+    } else {
+        syslog(LOG_INFO, "Unknown overlay id!");
+    }
+}
+
+/**
+ * brief Callback function which is called when animation timer has elapsed.
+ *
+ * This function is called when the animation timer has elapsed, which will
+ * update the counter, colors and also trigger a redraw of the overlay.
+ *
+ * param user_data Optional callback user data.
+ */
+static gboolean update_overlay_cb(gpointer user_data) {
+    /* Silence compiler warnings for unused parameters/arguments */
+    (void)user_data;
+
+    GError* error = NULL;
+
+    // Countdown
+    counter = counter < 1 ? 10 : counter - 1;
+
+    if (counter >= 0 && counter <= 3) 
+        color = (RGBColor){ 1.0, 0.0, 0.0}; // red
+    else if (counter > 3 && counter <= 7)
+        color = (RGBColor){ 0.0, 0.0, 1.0}; // blue
+    else
+        color = (RGBColor){0.0, 1.0, 0.0}; // Green
+
+    // Request a redraw of the overlay
+    axoverlay_redraw(&error);
+    if (error != NULL) {
+        /*
+         * If redraw fails then it is likely due to that overlayd has
+         * crashed. Don't exit instead wait for overlayd to restart and
+         * for axoverlay to restore the connection.
+         */
+        syslog(LOG_ERR, "Failed to redraw overlay (%d): %s", error->code, error->message);
+        g_error_free(error);
+    }
+
+    return G_SOURCE_CONTINUE;
+}
+
+/***** Signal handler functions **********************************************/
+
+/**
+ * brief Handles the signals.
+ *
+ * param loop Loop to quit
+ */
+static gboolean signal_handler(gpointer loop) {
+    g_main_loop_quit((GMainLoop*)loop);
+    syslog(LOG_INFO, "Application was stopped by SIGTERM or SIGINT.");
+    return G_SOURCE_REMOVE;
+}
+
+/***** Main function *********************************************************/
+
+/**
+ * brief Main function.
+ *
+ * This main function draws two plain boxes and one text, using the
+ * API axoverlay.
+ */
+
 int main(void) {
-    openlog("draw_text", LOG_PID, LOG_USER);
+    /* TODO 1: Review the README steps for manifest and Makefile changes. */
+    /* TODO 2: Paste the setup snippet into this main function. */
+    /* TODO 3: Paste the runtime/API workflow snippets in order. */
+    /* TODO 4: Paste the cleanup snippet at the end. */
 
-    syslog(LOG_INFO, "draw_text exercise skeleton started");
-
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
-
-    syslog(LOG_INFO, "TODO: complete draw_text.c using the README implementation snippet");
-
-    closelog();
-    return EXIT_SUCCESS;
+    return 0;
 }

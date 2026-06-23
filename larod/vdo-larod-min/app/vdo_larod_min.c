@@ -1,26 +1,570 @@
-/*
- * Exercise skeleton for vdo_larod_min.
+/**
+ * simple_vdo_larod.c
  *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
+ * Minimal but production-realistic VDO → larod pipeline on Axis cameras.
+ *
+ * Supports two paths:
+ *   - a9-dlpu-tflite: VDO delivers RGB directly, preprocessing only if resize needed
+ *   - a8-dlpu-tflite (and others): VDO delivers NV12, preprocessing converts + resizes
+ *
+ * What it does:
+ *   1. Connects to larod, loads a person/car classification model
+ *   2. Opens a VDO stream (RGB or NV12 depending on backend)
+ *   3. If needed → sets up larod preprocessing
+ *   4. Grabs frames via poll() → preprocesses → infers
+ *   5. Prints "Person: X% — Car: Y%"
+ *
+ * Build: see Dockerfile / Makefile
+ * Run:   ./simple_vdo_larod
  */
 
+#include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
 #include <syslog.h>
+#include <unistd.h>
+
+#include "larod.h"
+#include "vdo-buffer.h"
+#include "vdo-channel.h"
+#include "vdo-error.h"
+#include "vdo-frame.h"
+#include "vdo-map.h"
+#include "vdo-stream.h"
+#include "vdo-types.h"
+
+#include <glib.h>
+
+/* ══════════════════════════════════════════════
+ *  Configuration — change DEVICE_NAME for your hardware
+ * ══════════════════════════════════════════════ */
+
+/* Inference backend — change to match your device */
+#define DEVICE_NAME     "a9-dlpu-tflite"     /* or "axis-a8-dlpu-tflite"      */
+#define PP_DEVICE_NAME  "cpu-proc"           /* preprocessing always on CPU   */
+#define MODEL_PATH      "/usr/local/packages/vdo_larod_min/model/model.tflite"
+
+/* VDO stream settings */
+#define VDO_CHANNEL     2
+#define VDO_NUM_BUFFERS 2
+#define VDO_FRAMERATE   2.0
+#define IMAGE_FIT       "scale"     /* scale or crop */
+
+/* We'll read these from the model at runtime */
+static unsigned int MODEL_WIDTH  = 0;
+static unsigned int MODEL_HEIGHT = 0;
+
+/* ══════════════════════════════════════════════
+ *  Backend capability detection
+ *
+ *  a9-dlpu-tflite:        accepts RGB directly from VDO
+ *  axis-a8-dlpu-tflite:   needs NV12 → RGB preprocessing
+ *  everything else:       needs NV12 → RGB preprocessing
+ * ══════════════════════════════════════════════ */
+
+ static bool backend_supports_rgb(const char* device_name) {
+    return (strcmp(device_name, "a9-dlpu-tflite") == 0);
+ }
+
+/* ══════════════════════════════════════════════
+ *  Signal handling
+ * ══════════════════════════════════════════════ */
+
+static volatile sig_atomic_t running = 1;
+
+static void on_signal(int sig) {
+    (void)sig;
+    running = 0;
+}
+
+/* ══════════════════════════════════════════════
+ *  Helper: panic and exit
+ * ══════════════════════════════════════════════ */
+
+#define PANIC(fmt, ...) do {                        \
+    syslog(LOG_ERR, "FATAL: " fmt, ##__VA_ARGS__);  \
+    exit(EXIT_FAILURE);                              \
+} while (0)
+
+/* ══════════════════════════════════════════════
+ *  Structures
+ * ══════════════════════════════════════════════ */
+
+/* One output tensor result */
+typedef struct {
+    int     fd;        /* tensor fd            */
+    void*   data;      /* mmap'd pointer       */
+    size_t  size;      /* byte size            */
+} output_buf_t;
+
+/* Per-VDO-buffer tracked tensor state */
+typedef struct {
+    larodTensor** tensors;   /* the input tensor array (len=1) */
+    int           duped_fd;  /* dup'd dmabuf fd                */
+    int           vdo_fd;    /* original vdo buffer fd (key)   */
+} tracked_input_t;
+
+/* ══════════════════════════════════════════════
+ *
+ *  STEP 1 — CONNECT TO LAROD
+ *
+ * ══════════════════════════════════════════════ */
+
+static larodConnection* larod_connect(void) {
+    larodConnection* conn = NULL;
+    larodError* error = NULL;
+
+    if(!larodConnect(&conn, &error)) {
+        PANIC("larodConnect: %s", error->msg);
+    }
+    syslog(LOG_INFO, "Connected to larod successfully");
+    return conn;
+}
+
+/* ══════════════════════════════════════════════
+ *
+ *  STEP 2 — LOAD THE INFERENCE MODEL
+ *
+ *  Opens the .tflite file, selects the device
+ *  (e.g. "a9-dlpu-tflite"), and loads the model.
+ *
+ * ══════════════════════════════════════════════ */
+
+static larodModel* load_inference_model(larodConnection* conn, int* model_fd_out) {
+    larodError* error = NULL;
+
+    /* Open model file */
+    int model_fd = open(MODEL_PATH, O_RDONLY);
+    if (model_fd < 0) {
+        PANIC("open(%s): %s", MODEL_PATH, strerror(errno));
+    }
+    *model_fd_out = model_fd;
+
+    /* Get the device handle for our chosen backend */
+    const larodDevice* device = larodGetDevice(conn, DEVICE_NAME, 0, &error);
+    if (!device) {
+        PANIC("larodGetDevice(%s): %s", DEVICE_NAME, error->msg);
+    }
+
+    /* Load the model — this may take a while on first load */
+    syslog(LOG_INFO, "Loading model on %s (may take a minute)...", DEVICE_NAME);
+    larodModel* model = larodLoadModel(conn,
+                                       model_fd,
+                                       device,
+                                       LAROD_ACCESS_PRIVATE,
+                                       "person-car model",
+                                       NULL,    /* no extra params */
+                                       &error);
+    if (!model) {
+        PANIC("larodLoadModel: %s", error->msg);
+    }
+    syslog(LOG_INFO, "Model loaded successfully");
+    return model;
+}
+/* ══════════════════════════════════════════════
+ *
+ *  STEP 3 — READ MODEL INPUT DIMENSIONS
+ *
+ *  We query the model's input tensor to learn
+ *  what width/height/format it expects.
+ *  Then we destroy the temporary input tensors.
+ *
+ * ══════════════════════════════════════════════ */
+
+static void read_model_input_size(larodConnection* conn,
+                                  larodModel* model,
+                                  unsigned int* pitch_out) {
+    larodError* error       = NULL;
+    larodTensor** tmp_inputs = NULL;
+    size_t num_inputs        = 0;
+
+    tmp_inputs = larodAllocModelInputs(conn, model, 0, &num_inputs, NULL, &error);
+    if (!tmp_inputs || num_inputs == 0) {
+        PANIC("larodAllocModelInputs: %s", error->msg);
+    }
+    // just to understand what the model expects - TO BE REMOVED
+    for(size_t i = 0; i < num_inputs; i++) {
+        syslog(LOG_INFO, "Model input tensor %zu: name='%s'", i,
+               larodGetTensorName(tmp_inputs[i], &error) ?: "N/A");
+    }
+    // tmp_inputs[0] is the input tensor, we can read its dimensions and layout to understand what the model expects
+    const larodTensorDims* dims = larodGetTensorDims(tmp_inputs[0], &error);
+    if (!dims || dims->len != 4) {
+        PANIC("Expected 4D input tensor, got %zu dims", dims ? dims->len : 0);
+    }
+
+    // NHWC layout: dim = [N, H, W, C] and we expect N=1, C=3 (RGB) [batch size is usually 1 for inference, and 3 channels for RGB, width and height are model dependent]
+    MODEL_HEIGHT = dims->dims[1];
+    MODEL_WIDTH  = dims->dims[2];
+    syslog(LOG_INFO, "Model expects input size: %ux%u", MODEL_WIDTH, MODEL_HEIGHT);
+
+    // Pitches are the byte offsets to move to the next element in each dimension. For NHWC, we expect pitch for W to be 3 (for RGB), and pitch for H to be width * 3, and pitch for N to be height * width * 3. 
+    // We can read the pitch for the W dimension to understand how the model expects the data to be laid out in memory.
+    const larodTensorPitches* pitches = larodGetTensorPitches(tmp_inputs[0], &error);
+    if (!pitches || pitches->len != 4) {
+        PANIC("larodGetTensorPitches: %s", error->msg);
+    }
+    *pitch_out = pitches->pitches[2];  // pitch for W dimension
+    syslog(LOG_INFO, "Model input tensor pitch for W dimension: %u bytes", *pitch_out);
+    syslog(LOG_INFO, "Model expects %ux%u RGB input with row pitch %u", MODEL_WIDTH, MODEL_HEIGHT, *pitch_out);
+
+    larodDestroyTensors(conn, &tmp_inputs, num_inputs, &error);
+}
+
+
+/* ══════════════════════════════════════════════
+ *
+ *  STEP 4 — CREATE OUTPUT TENSORS + MMAP
+ *
+ *  larod allocates the output memory for us.
+ *  We mmap each output tensor so we can read
+ *  the results after inference.
+ *
+ * ══════════════════════════════════════════════ */
+
+static larodTensor** create_output_tensors(larodConnection* conn,
+                                           larodModel* model,
+                                           output_buf_t* out_bufs,
+                                           size_t* num_outputs) {
+    larodError* error = NULL;
+
+    // Let larod allocate output tensors with read/write + mmap-able memory 
+    // output tensors are allocated by larod and we get their fds, sizes, and mmap them to read the results after inference
+    larodTensor** tensors = larodAllocModelOutputs(conn,
+                                                    model,
+                                                    LAROD_FD_PROP_READWRITE | LAROD_FD_PROP_MAP,
+                                                    num_outputs, 
+                                                    NULL, 
+                                                    &error);
+
+    if(!tensors) {
+        PANIC("larodAllocModelOutputs: %s", error->msg);
+    }
+    // For each output tensor: get its fd, size, and mmap it so we can read the results after inference
+    for(size_t i = 0; i < *num_outputs; i++) {
+        out_bufs[i].fd = larodGetTensorFd(tensors[i], &error);
+        if(out_bufs[i].fd == LAROD_INVALID_FD) {
+            PANIC("larodGetTensorFd: %s", error->msg);
+        }
+        if(!larodGetTensorFdSize(tensors[i], &out_bufs[i].size, &error)) {
+            PANIC("larodGetTensorFdSize: %s", error->msg);
+        }
+        // mmap the tensor fd so we can read the results after inference
+        out_bufs[i].data = mmap(NULL, out_bufs[i].size, PROT_READ, MAP_SHARED, out_bufs[i].fd, 0);
+        if(out_bufs[i].data == MAP_FAILED) {
+            PANIC("mmap output tensor %zu: %s", i, strerror(errno));
+        }
+        syslog(LOG_INFO, "Output tensor %zu: fd=%d, size=%zu bytes", i, out_bufs[i].fd, out_bufs[i].size);
+    }
+
+    
+    return tensors;
+}
+/* ══════════════════════════════════════════════
+ *
+ *  STEP 5 — CREATE VDO STREAM
+ *
+ *  Opens the camera video stream. We request
+ *  YUV (NV12) format since preprocessing will
+ *  handle the conversion. Non-blocking + poll.
+ *
+ * ══════════════════════════════════════════════ */
+
+static VdoStream* create_vdo_stream(bool rgb_backend,
+                                    unsigned int* out_w,
+                                    unsigned int* out_h,
+                                    unsigned int* out_pitch,
+                                    unsigned int* out_nbr_bufs,
+                                    bool* out_is_dmabuf,
+                                    VdoFormat* out_format) {
+    GError* error = NULL;
+
+    VdoMap* settings = vdo_map_new();
+    vdo_map_set_uint32(settings, "channel",         VDO_CHANNEL);
+    vdo_map_set_uint32(settings, "buffer.count",    VDO_NUM_BUFFERS);
+    vdo_map_set_double(settings, "framerate",       VDO_FRAMERATE);
+    vdo_map_set_boolean(settings, "socket.blocking", false);
+    vdo_map_set_string(settings, "image.fit", IMAGE_FIT);
+
+    if(rgb_backend) {
+        /*
+        * A9 path: request RGB at exactly the model's resolution.
+        * VDO + image.fit="scale" handles the resize for us.
+        * This is the simplest path since we can feed VDO buffers directly to the model with no preprocessing needed.
+        * No format conversion needed -> may skip preprocessing entirely
+        */
+        vdo_map_set_uint32(settings, "format", VDO_FORMAT_RGB );
+        VdoPair32u resolution = { .w = MODEL_WIDTH, .h = MODEL_HEIGHT };
+        vdo_map_set_pair32u(settings, "resolution", resolution);
+        syslog(LOG_INFO, "Requesting RGB output from VDO (backend supports RGB) %ux%u", MODEL_WIDTH, MODEL_HEIGHT);
+
+    } else {
+        /*
+        * Non-A9 path: request NV12 format.
+        * We'll do RGB conversion + resizing in larod preprocessing since the model expects RGB and VDO gives us NV12.
+        */
+        vdo_map_set_uint32(settings, "format", VDO_FORMAT_YUV);  /* NV12 is the most common YUV format and widely supported by VDO */
+        VdoPair32u resolution = { .w = MODEL_WIDTH, .h = MODEL_HEIGHT };
+        vdo_map_set_pair32u(settings, "resolution", resolution);
+        syslog(LOG_INFO, "Requesting NV12 output from VDO (backend does not support RGB) %ux%u", MODEL_WIDTH, MODEL_HEIGHT);
+    }
+    
+
+    VdoStream* stream = vdo_stream_new(settings, NULL, &error);
+    g_object_unref(settings);
+    if (!stream) {
+        PANIC("vdo_stream_new: %s", error->message);
+    }
+
+    /* Read back what VDO actually gave us */
+    VdoMap* info = vdo_stream_get_info(stream, &error);
+    if (!info) {
+        PANIC("vdo_stream_get_info: %s", error->message);
+    }
+    *out_format    = vdo_map_get_uint32(info, "format", 0);
+    *out_w         = vdo_map_get_uint32(info, "width", 0);
+    *out_h         = vdo_map_get_uint32(info, "height", 0);
+    *out_pitch     = vdo_map_get_uint32(info, "pitch", 0);
+    *out_nbr_bufs  = vdo_map_get_uint32(info, "buffer.count", VDO_NUM_BUFFERS);
+
+    const char* buf_type = vdo_map_get_string(info, "buffer.type", NULL, "memfd");
+    *out_is_dmabuf = (g_strcmp0(buf_type, "vmem") != 0);
+
+    syslog(LOG_INFO, "VDO stream: %ux%u, pitch=%u, buffers=%u, dmabuf=%d",
+           *out_w, *out_h, *out_pitch, *out_nbr_bufs, *out_is_dmabuf);
+
+    g_object_unref(info);
+    return stream;
+}
+
+/* ══════════════════════════════════════════════
+ *
+ *  STEP 6 — SET UP PREPROCESSING (if needed)
+ *  
+ *  Two scenarios:
+ *  A) Backends supports RGB (e.g. a9-dlpu-tflite) and delivers the expected resolution → no preprocessing needed, 
+ *  we can feed VDO buffers directly to the model.
+ * 
+ *  B) Backend delivers NV12 or delivers a different resolution → we need preprocessing to convert NV12→RGB and/or resize. 
+ *  We set up a larod "model" on the cpu-proc device with parameters describing the input (VDO) and output (model) formats, 
+ *  and let larod handle the conversion for us.
+ *
+ * ══════════════════════════════════════════════ */
+
+static larodModel* setup_preprocessing(larodConnection* conn,
+                                        VdoFormat vdo_format,
+                                        unsigned int vdo_w,
+                                        unsigned int vdo_h,
+                                        unsigned int vdo_pitch,
+                                        unsigned int model_pitch,
+                                        larodTensor*** pp_outputs_out,
+                                        size_t* pp_num_outputs) {
+    larodError* error = NULL;
+
+    /*
+    * Determine input format string based on what VDO delivers 
+    */
+    const char* input_format_str;
+    switch (vdo_format) {
+        case VDO_FORMAT_YUV:
+            input_format_str = "nv12";
+            break;
+        case VDO_FORMAT_RGB:
+            input_format_str = "rgb-interleaved";
+            break;
+        case VDO_FORMAT_PLANAR_RGB:
+            input_format_str = "rgb-planar";
+            break;
+        default:
+            PANIC("Unsupported VDO format: %s", error->msg);
+    }
+
+    // Output is always what the model needs: RGB interleaved
+    const char* output_format_str = "rgb-interleaved";
+
+    syslog(LOG_INFO, "Setting up preprocessing: input_format=%s %ux%u -> output_format=%s %ux%u", input_format_str, vdo_w, vdo_h, output_format_str, MODEL_WIDTH, MODEL_HEIGHT);
+
+    /* Build the parameter map describing input and output formats */
+    larodMap* map = larodCreateMap(&error);
+    if (!map) PANIC("larodCreateMap: %s", error->msg);
+
+    /* Input: what VDO gives us (NV12 / YUV or RGB) */
+    larodMapSetStr(map, "image.input.format", input_format_str, &error);
+    larodMapSetIntArr2(map, "image.input.size", vdo_w, vdo_h, &error);
+    larodMapSetInt(map, "image.input.row-pitch", vdo_pitch, &error);
+
+    /* Output: what the model needs (RGB interleaved) */
+    larodMapSetStr(map, "image.output.format", output_format_str, &error);
+    larodMapSetIntArr2(map, "image.output.size", MODEL_WIDTH, MODEL_HEIGHT, &error);
+    larodMapSetInt(map, "image.output.row-pitch", model_pitch, &error);
+
+    /* Load preprocessing as a "model" on cpu-proc (no model file → fd = -1) */
+    const larodDevice* pp_device = larodGetDevice(conn, PP_DEVICE_NAME, 0, &error);
+    larodModel* pp_model = larodLoadModel(conn, -1, pp_device,
+                                          LAROD_ACCESS_PRIVATE, "", map, &error);
+    if (!pp_model) {
+        PANIC("larodLoadModel(preprocessing): %s", error->msg);
+    }
+    larodDestroyMap(&map);
+
+    /* Allocate output tensors for preprocessing */
+    *pp_outputs_out = larodAllocModelOutputs(conn, pp_model,
+                                             LAROD_FD_PROP_READWRITE | LAROD_FD_PROP_MAP,
+                                             pp_num_outputs, NULL, &error);
+    if (!*pp_outputs_out) {
+        PANIC("larodAllocModelOutputs(pp): %s", error->msg);
+    }
+
+    syslog(LOG_INFO, "Preprocessing model loaded on %s", PP_DEVICE_NAME);
+    return pp_model;
+}
+
+
+
+/* ══════════════════════════════════════════════
+ *
+ *  STEP 7 — CREATE INPUT TENSORS FOR VDO BUFFERS
+ *
+ *  We create one input tensor per VDO buffer.
+ *  Each tensor describes the image layout
+ *  (NV12, width, height, pitch) and is flagged
+ *  for DMA-buf access.
+ *
+ * ══════════════════════════════════════════════ */
+
+static void create_input_tensors(tracked_input_t* tracked,
+                                 unsigned int nbr_bufs,
+                                 unsigned int vdo_w,
+                                 unsigned int vdo_h,
+                                 unsigned int vdo_pitch,
+                                 VdoFormat vdo_format) {
+    larodError* error = NULL;
+    
+    // Pick tensor layout to match VDO format (e.g. NV12 → 420SP, RGB → RGB interleaved)
+    larodTensorLayout layout;
+    switch (vdo_format) {
+        case VDO_FORMAT_YUV:            layout = LAROD_TENSOR_LAYOUT_420SP; break;
+        case VDO_FORMAT_RGB:            layout = LAROD_TENSOR_LAYOUT_NHWC; break;
+        case VDO_FORMAT_PLANAR_RGB:     layout = LAROD_TENSOR_LAYOUT_NCHW; break;
+        default:  PANIC("Unsupported VDO format: %s", error->msg);
+    }
+    const char* layout_str;
+    switch (layout) {
+        case LAROD_TENSOR_LAYOUT_420SP:             layout_str = "420SP (NV12)"; break;
+        case LAROD_TENSOR_LAYOUT_NHWC:              layout_str = "NHWC (RGB)"; break;
+        case LAROD_TENSOR_LAYOUT_NCHW:              layout_str = "NCHW (planar)"; break;
+        default: PANIC("Unsupported tensor layout: %s", layout_str);
+    }
+
+    for (unsigned int i = 0; i < nbr_bufs; i++) {
+        tracked[i].vdo_fd   = -1;
+        tracked[i].duped_fd = -1;
+
+        /* Create one tensor */
+        tracked[i].tensors = larodCreateTensors(1, &error);
+        if (!tracked[i].tensors) {
+            PANIC("larodCreateTensors[%u]: %s", i, error->msg);
+        }
+
+        larodTensor* t = tracked[i].tensors[0];
+
+        /* Tell larod about the data format */
+        larodSetTensorDataType(t, LAROD_TENSOR_DATA_TYPE_UINT8, &error);
+        larodSetTensorLayout(t, layout, &error);
+        larodBuildTensorDims(t, layout, vdo_w, vdo_h, 3, &error);
+        larodBuildTensorPitches(t, layout, vdo_pitch, vdo_h, 3, &error);
+        larodSetTensorFdProps(t, LAROD_FD_PROP_MAP | LAROD_FD_PROP_DMABUF, &error);
+    }
+    syslog(LOG_INFO, "Created %u input tensors (NV12 %ux%u)", nbr_bufs, vdo_w, vdo_h);
+}
+
+/* ══════════════════════════════════════════════
+ *
+ *  STEP 8 — TRACK A VDO BUFFER
+ *
+ *  When we see a VDO buffer fd for the first
+ *  time, we dup it, convert vmem→dmabuf if
+ *  needed, and register ("track") the tensor
+ *  with larod so it knows the memory region.
+ *
+ * ══════════════════════════════════════════════ */
+
+static int track_vdo_buffer(larodConnection* conn,
+                            tracked_input_t* tracked,
+                            unsigned int nbr_bufs,
+                            VdoBuffer* vdo_buf,
+                            bool is_dmabuf) {
+    larodError* error = NULL;
+
+    int vdo_fd          = vdo_buffer_get_fd(vdo_buf);
+    int64_t vdo_offset  = vdo_buffer_get_offset(vdo_buf); // tells larod where inside that buffer the real image data starts
+    size_t vdo_capacity = vdo_buffer_get_capacity(vdo_buf);
+
+    /* Check if we've already tracked this fd */
+    for (unsigned int i = 0; i < nbr_bufs; i++) {
+        if (tracked[i].vdo_fd == vdo_fd) {
+            return (int)i;   /* already tracked */
+        }
+    }
+
+    /* Find the next free slot */
+    int slot = -1;
+    for (unsigned int i = 0; i < nbr_bufs; i++) {
+        if (tracked[i].vdo_fd == -1) {
+            slot = (int)i;
+            break;
+        }
+    }
+    if (slot < 0) {
+        PANIC("No free tracking slots (max=%u)", nbr_bufs);
+    }
+
+    /* Convert vmem → dmabuf if the device doesn't use dmabuf natively */
+    int buf_fd = vdo_fd;
+    if (!is_dmabuf) {
+        buf_fd = larodConvertVmemFdToDmabuf(vdo_fd, vdo_offset, &error);
+        if (buf_fd == LAROD_INVALID_FD) {
+            PANIC("larodConvertVmemFdToDmabuf: %s", error->msg);
+        }
+        vdo_offset = 0;   /* offset is baked into the new fd, registers the tensor + fd info with larod */
+    }
+
+    /* Dup the fd so larod can own its own copy */
+    int duped = dup(buf_fd);
+    if (duped < 0) {
+        PANIC("dup: %s", strerror(errno));
+    }
+
+    /* Bind the fd to the tensor and register it with larod */
+    larodTensor* t = tracked[slot].tensors[0];
+    larodSetTensorFd(t, duped, &error); // attaches the file descriptor to the tensor
+    larodSetTensorFdOffset(t, vdo_offset, &error); // tells larod where inside that fd the real image data starts
+    larodSetTensorFdSize(t, vdo_capacity, &error); // tells larod how much data is valid
+    larodTrackTensor(conn, t, &error); // registers the tensor + fd info with larod
+
+    tracked[slot].vdo_fd   = vdo_fd;
+    tracked[slot].duped_fd = duped;
+
+    syslog(LOG_INFO, "Tracked VDO buffer slot %d (vdo_fd=%d, duped=%d)", slot, vdo_fd, duped);
+    return slot;
+}
+
+/* ══════════════════════════════════════════════
+ *
+ *  MAIN
+ *
+ * ══════════════════════════════════════════════ */
 
 int main(void) {
-    openlog("vdo_larod_min", LOG_PID, LOG_USER);
+    /* TODO 1: Review the README steps for manifest and Makefile changes. */
+    /* TODO 2: Paste the setup snippet into this main function. */
+    /* TODO 3: Paste the runtime/API workflow snippets in order. */
+    /* TODO 4: Paste the cleanup snippet at the end. */
 
-    syslog(LOG_INFO, "vdo_larod_min exercise skeleton started");
-
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
-
-    syslog(LOG_INFO, "TODO: complete vdo_larod_min.c using the README implementation snippet");
-
-    closelog();
-    return EXIT_SUCCESS;
+    return 0;
 }

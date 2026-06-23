@@ -3,7 +3,8 @@ OBJS1 = $(wildcard *.c)
 PROGS = $(PROG1)
 DEBUG_DIR = debug
 
-PKGS = gio-2.0 gio-unix-2.0 vdostream
+# TODO: Add the API/library packages shown in README.md.
+PKGS = gio-2.0 gio-unix-2.0
 
 CFLAGS += $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --cflags $(PKGS))
 LDLIBS += $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --libs $(PKGS))

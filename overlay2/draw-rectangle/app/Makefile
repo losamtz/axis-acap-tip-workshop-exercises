@@ -1,6 +1,7 @@
 PROG1	= $(shell jq -r '.acapPackageConf.setup.appName' manifest.json)
 
-PKGS = gio-2.0 glib-2.0 cairo vdostream axoverlay2
+# TODO: Add the API/library packages shown in README.md.
+PKGS = gio-2.0 glib-2.0
 CFLAGS += $(shell pkg-config --cflags $(PKGS))
 LDLIBS += $(shell pkg-config --libs $(PKGS)) -lm
 

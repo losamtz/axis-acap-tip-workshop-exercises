@@ -1,147 +1,27 @@
 # Vdo Stream Events Exercise
 
-This exercise is based on the corresponding complete example in `axis-acap-tip-workshop`.
-The source file `app/vdo_stream_events.c` has been reduced to a small TODO skeleton.
+This exercise is based on `vdo/vdo-stream-events` from the complete `axis-acap-tip-workshop` repository.
 
-Your task is to rebuild the application flow by pasting the snippet below into `app/vdo_stream_events.c`.
-The snippet is intentionally kept in the README so you can read the sequence before editing the C file.
+`app/vdo_stream_events.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
 
-## What to do
+## Step 1: Review manifest configuration
 
-1. Open `app/vdo_stream_events.c`.
-2. Replace the skeleton implementation with the code from **Implementation snippet** below.
-3. Read through the code and identify the API setup, runtime loop, and cleanup flow.
-4. Build the package with the commands in **Build**.
+This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
 
+## Step 2: Add build dependencies
 
-## Implementation snippet
+Open `app/Makefile` and replace the TODO `PKGS` line with:
 
-Paste this into `app/vdo_stream_events.c`:
+```make
+PKGS = gio-2.0 gio-unix-2.0 glib-2.0 vdostream
+```
+
+## Step 3: Add main setup snippet
+
+Paste this into `main()` at the next TODO position:
 
 ```c
-/*
- * Copyright 2026 Axis Communications AB, Lund, Sweden
- *
- * Licensed under the Apache License, Version 2.0.
- */
-
-#include <gio/gio.h>
-#include <glib-unix.h>
-#include <glib.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <syslog.h>
-#include <vdo-error.h>
-#include <vdo-stream.h>
-
-static GMainLoop* main_loop = NULL;
-static VdoStream* event_stream = NULL;
-
-__attribute__((noreturn)) __attribute__((format(printf, 1, 2))) static void
-panic(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    vsyslog(LOG_ERR, format, args);
-    va_end(args);
-    exit(EXIT_FAILURE);
-}
-
-static const char* event_name(unsigned event_type) {
-    switch (event_type) {
-        case VDO_STREAM_EVENT_EXISTING:
-            return "EXISTING";
-        case VDO_STREAM_EVENT_CREATED:
-            return "CREATED";
-        case VDO_STREAM_EVENT_CLOSED:
-            return "CLOSED";
-        default:
-            return "UNKNOWN";
-    }
-}
-
-static void log_stream_info(unsigned stream_id) {
-    GError* error = NULL;
-    VdoStream* stream = vdo_stream_get(stream_id, &error);
-    if (!stream) {
-        syslog(LOG_WARNING, "Could not open stream %u for info: %s", stream_id, error->message);
-        g_clear_error(&error);
-        return;
-    }
-
-    VdoMap* info = vdo_stream_get_info(stream, NULL);
-    if (!info) {
-        syslog(LOG_WARNING, "Stream %u did not provide stream info", stream_id);
-        g_object_unref(stream);
-        return;
-    }
-
-    unsigned width = vdo_map_get_uint32(info, "width", 0);
-    unsigned height = vdo_map_get_uint32(info, "height", 0);
-    unsigned format = vdo_map_get_uint32(info, "format", 0);
-    unsigned camera = vdo_map_get_uint32(info, "camera", 0);
-    unsigned rotation = vdo_map_get_uint32(info, "rotation", 0);
-
-    syslog(LOG_INFO,
-           "Stream %u info: width=%u height=%u format=%u camera=%u rotation=%u",
-           stream_id,
-           width,
-           height,
-           format,
-           camera,
-           rotation);
-
-    g_object_unref(info);
-    g_object_unref(stream);
-}
-
-static gboolean signal_handler(gpointer user_data) {
-    (void)user_data;
-    g_main_loop_quit(main_loop);
-    return G_SOURCE_REMOVE;
-}
-
-static gboolean stream_event_callback(GIOChannel* channel,
-                                      GIOCondition condition,
-                                      gpointer user_data) {
-    (void)channel;
-    (void)user_data;
-
-    GError* error = NULL;
-    VdoMap* event = NULL;
-
-    if (condition & (G_IO_ERR | G_IO_HUP)) {
-        syslog(LOG_ERR, "VDO event connection was closed, condition=0x%04x", condition);
-        g_main_loop_quit(main_loop);
-        return G_SOURCE_REMOVE;
-    }
-
-    event = vdo_stream_get_event(event_stream, &error);
-    if (!event) {
-        if (g_error_matches(error, VDO_ERROR, VDO_ERROR_NO_EVENT)) {
-            g_clear_error(&error);
-            return G_SOURCE_CONTINUE;
-        }
-
-        syslog(LOG_ERR, "Failed to read VDO stream event: %s", error->message);
-        g_clear_error(&error);
-        g_main_loop_quit(main_loop);
-        return G_SOURCE_REMOVE;
-    }
-
-    unsigned event_type = vdo_map_get_uint32(event, "event", 0);
-    unsigned stream_id = vdo_map_get_uint32(event, "id", 0);
-
-    syslog(LOG_INFO, "VDO stream event: type=%s id=%u", event_name(event_type), stream_id);
-
-    if (event_type == VDO_STREAM_EVENT_EXISTING || event_type == VDO_STREAM_EVENT_CREATED)
-        log_stream_info(stream_id);
-
-    g_object_unref(event);
-    return G_SOURCE_CONTINUE;
-}
-
-int main(void) {
-    GError* error = NULL;
+GError* error = NULL;
     VdoMap* stream_filter = NULL;
     GIOChannel* channel = NULL;
     guint watch_id = 0;
@@ -177,8 +57,14 @@ int main(void) {
 
     syslog(LOG_INFO, "Waiting for overlay-capable stream events");
     g_main_loop_run(main_loop);
+```
 
-    if (watch_id)
+## Step 4: Add main configuration snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+if (watch_id)
         g_source_remove(watch_id);
     if (channel)
         g_io_channel_unref(channel);
@@ -193,7 +79,6 @@ int main(void) {
     syslog(LOG_INFO, "Stopped VDO stream events example");
     closelog();
     return EXIT_SUCCESS;
-}
 ```
 
 ## Build
@@ -209,11 +94,8 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera from the Apps page or with your usual ACAP install flow.
-If the application exposes HTTP endpoints or overlays, use the behavior described by the code comments and the parent module README to verify it.
+Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
 
 ## Reference
 
-The complete version lives in the original `axis-acap-tip-workshop` repository under the same relative path:
-
-`vdo/vdo-stream-events`
+Complete source: `vdo/vdo-stream-events` in `axis-acap-tip-workshop`.

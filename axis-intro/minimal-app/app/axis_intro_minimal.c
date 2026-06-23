@@ -1,26 +1,25 @@
 /*
- * Exercise skeleton for axis_intro_minimal.
- *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
+ * Minimal ACAP application for explaining package structure.
  */
 
+#include <signal.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <unistd.h>
+
+static volatile sig_atomic_t running = 1;
+
+static void signal_handler(int signal_number) {
+    (void)signal_number;
+    running = 0;
+}
 
 int main(void) {
-    openlog("axis_intro_minimal", LOG_PID, LOG_USER);
+    /* TODO 1: Review the README steps for manifest and Makefile changes. */
+    /* TODO 2: Paste the setup snippet into this main function. */
+    /* TODO 3: Paste the runtime/API workflow snippets in order. */
+    /* TODO 4: Paste the cleanup snippet at the end. */
 
-    syslog(LOG_INFO, "axis_intro_minimal exercise skeleton started");
-
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
-
-    syslog(LOG_INFO, "TODO: complete axis_intro_minimal.c using the README implementation snippet");
-
-    closelog();
-    return EXIT_SUCCESS;
+    return 0;
 }

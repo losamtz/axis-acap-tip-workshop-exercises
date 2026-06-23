@@ -1,111 +1,27 @@
 # Larod Basic Exercise
 
-This exercise is based on the corresponding complete example in `axis-acap-tip-workshop`.
-The source file `app/larod_basic.c` has been reduced to a small TODO skeleton.
+This exercise is based on `larod/larod-basic` from the complete `axis-acap-tip-workshop` repository.
 
-Your task is to rebuild the application flow by pasting the snippet below into `app/larod_basic.c`.
-The snippet is intentionally kept in the README so you can read the sequence before editing the C file.
+`app/larod_basic.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
 
-## What to do
+## Step 1: Review manifest configuration
 
-1. Open `app/larod_basic.c`.
-2. Replace the skeleton implementation with the code from **Implementation snippet** below.
-3. Read through the code and identify the API setup, runtime loop, and cleanup flow.
-4. Build the package with the commands in **Build**.
+This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
 
+## Step 2: Add build dependencies
 
-## Implementation snippet
+Open `app/Makefile` and replace the TODO `PKGS` line with:
 
-Paste this into `app/larod_basic.c`:
+```make
+PKGS = gio-2.0 gio-unix-2.0 liblarod vdostream
+```
+
+## Step 3: Add main setup snippet
+
+Paste this into `main()` at the next TODO position:
 
 ```c
-/**
- * larod_basic.c
- *
- * The simplest possible VDO + larod application.
- * Blocking VDO, no preprocessing, no tensor tracking, no poll().
- * ~100 lines of actual logic.
- *
- * Only works on backends that accept RGB directly (e.g. a9-dlpu-tflite).
- * VDO delivers RGB at the model's resolution, frames go straight to inference.
- */
-
-#include <errno.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <syslog.h>
-#include <unistd.h>
-
-#include "larod.h"
-#include "vdo-buffer.h"
-#include "vdo-error.h"
-#include "vdo-frame.h"
-#include "vdo-map.h"
-#include "vdo-stream.h"
-#include "vdo-types.h"
-
-#include <glib.h>
-
-#define DEVICE_NAME  "a9-dlpu-tflite" /* or "axis-a8-dlpu-tflite"      */
-#define MODEL_PATH   "/usr/local/packages/larod_basic/model/model.tflite"
-
-#define PANIC(fmt, ...)                                 \
-    do {                                                \
-        syslog(LOG_ERR, "FATAL: " fmt, ##__VA_ARGS__); \
-        exit(EXIT_FAILURE);                             \
-    } while (0)
-
-
-static volatile sig_atomic_t running = 1;
-static void on_signal(int s) { (void)s; running = 0; }
-
-
-/* ══════════════════════════════════════════════
- *
- *  STEP 1 — CONNECT TO LAROD
- *
- * ══════════════════════════════════════════════ */
-static larodConnection* larod_connect(void) {
-    larodConnection* conn = NULL;
-    larodError* error = NULL;
-
-    if(!larodConnect(&conn, &error)) {
-        PANIC("larodConnect: %s", error->msg);
-    }
-    syslog(LOG_INFO, "Connected to larod successfully");
-    return conn;
-}
-/* ══════════════════════════════════════════════
- *
- *  STEP 2 — LOAD THE INFERENCE MODEL
- *
- *  Opens the .tflite file, selects the device
- *  (e.g. "a9-dlpu-tflite"), and loads the model.
- *
- * ══════════════════════════════════════════════ */
-static larodModel* load_inference_model(larodConnection* conn, int* model_fd_out) {
-    larodError*      error = NULL;
-
-    int model_fd = open(MODEL_PATH, O_RDONLY);
-
-    *model_fd_out = model_fd;
-
-    const larodDevice* device = larodGetDevice(conn, DEVICE_NAME, 0, &error);
-    larodModel* model = larodLoadModel(conn, model_fd, device,
-                                       LAROD_ACCESS_PRIVATE, "", NULL, &error);
-    if (!model) {
-        PANIC("larodLoadModel: %s", error->msg);
-    }
-    syslog(LOG_INFO, "Model loaded successfully");
-    return model;
-}
-
-int main(void) {
-    larodConnection* conn  = NULL;
+larodConnection* conn  = NULL;
     larodError*      error = NULL;
     int model_fd = -1;
 
@@ -126,14 +42,19 @@ int main(void) {
     unsigned int h = dims->dims[1];
     unsigned int w = dims->dims[2];
 
-
     const larodTensorPitches* pitches = larodGetTensorPitches(tmp_in[0], &error);
     unsigned int model_pitch = pitches->pitches[2];
 
     syslog(LOG_INFO, "Model input: %ux%u pitch=%u", w, h, model_pitch);
     larodDestroyTensors(conn, &tmp_in, num_in, &error);
+```
 
-    /* ── 4. Allocate output tensors + mmap ── */
+## Step 4: Add main configuration snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ── 4. Allocate output tensors + mmap ── */
     size_t num_out = 0;
     larodTensor** out_tensors = larodAllocModelOutputs(conn, model,
                                     LAROD_FD_PROP_READWRITE | LAROD_FD_PROP_MAP,
@@ -148,8 +69,14 @@ int main(void) {
             PANIC("mmap output[%zu]: %s", i, strerror(errno));
         }
     }
+```
 
-    /* ── 5. Create VDO stream (blocking, RGB, model resolution) ── */
+## Step 5: Add main runtime flow snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ── 5. Create VDO stream (blocking, RGB, model resolution) ── */
     VdoMap* settings = vdo_map_new();
     vdo_map_set_uint32(settings, "channel", 1); // Using channel 1
     vdo_map_set_uint32(settings, "format", VDO_FORMAT_RGB);
@@ -185,8 +112,14 @@ int main(void) {
     vdo_stream_start(stream, &vdo_err);
     syslog(LOG_INFO, "VDO stream started (blocking, RGB %ux%u pitch=%u)",
            vdo_w, vdo_h, vdo_pitch);
+```
 
-    /* ── 6. Allocate input tensors (one per buffer) ── */
+## Step 6: Add main processing loop snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ── 6. Allocate input tensors (one per buffer) ── */
     larodTensor** in_tensors[2] = {NULL, NULL};
     int duped_fds[2] = {-1, -1};
     int tracked_vdo_fds[2] = {-1, -1};
@@ -207,8 +140,14 @@ int main(void) {
         larodSetTensorFdProps(t, LAROD_FD_PROP_MAP | LAROD_FD_PROP_DMABUF, &error);
     }
     syslog(LOG_INFO, "Created %d input tensors (NHWC RGB %ux%u pitch=%u)", 2, vdo_w, vdo_h, vdo_pitch);
+```
 
-    /* ── 7. Inference job (created lazily) ── */
+## Step 7: Add main cleanup snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ── 7. Inference job (created lazily) ── */
     larodJobRequest* job = NULL;
 
     /* ── 8. Main loop ── */
@@ -231,8 +170,14 @@ int main(void) {
             if (slot < 0) {
                 PANIC("No free tracking slots");
             }
-            
-            /* Tensors already created in step 6 — just bind the VDO buffer fd */
+```
+
+## Step 8: Add main workflow part 6 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* Tensors already created in step 6 — just bind the VDO buffer fd */
             int64_t offset = vdo_buffer_get_offset(buf);
             size_t cap     = vdo_buffer_get_capacity(buf);
             int duped      = dup(vdo_fd);
@@ -250,8 +195,14 @@ int main(void) {
             duped_fds[slot] = duped;
             syslog(LOG_INFO, "Tracked buffer slot %d (vdo_fd=%d)", slot, vdo_fd);
         }
+```
 
-        /* Create or update job */
+## Step 9: Add main workflow part 7 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* Create or update job */
         if (!job) {
             job = larodCreateJobRequest(model,
                                         in_tensors[slot], 1,
@@ -271,8 +222,14 @@ int main(void) {
 
         vdo_stream_buffer_unref(stream, &buf, &vdo_err);
     }
+```
 
-    /* ── 9. Cleanup ── */
+## Step 10: Add main workflow part 8 snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+/* ── 9. Cleanup ── */
     larodDestroyJobRequest(&job);
     for (int i = 0; i < 2; i++) {
         if (in_tensors[i]) larodDestroyTensors(conn, &in_tensors[i], 1, &error);
@@ -290,7 +247,6 @@ int main(void) {
     syslog(LOG_INFO, "Done");
     closelog();
     return EXIT_SUCCESS;
-}
 ```
 
 ## Build
@@ -306,11 +262,8 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera from the Apps page or with your usual ACAP install flow.
-If the application exposes HTTP endpoints or overlays, use the behavior described by the code comments and the parent module README to verify it.
+Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
 
 ## Reference
 
-The complete version lives in the original `axis-acap-tip-workshop` repository under the same relative path:
-
-`larod/larod-basic`
+Complete source: `larod/larod-basic` in `axis-acap-tip-workshop`.

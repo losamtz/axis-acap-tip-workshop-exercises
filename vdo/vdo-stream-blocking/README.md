@@ -1,66 +1,27 @@
 # Vdo Stream Blocking Exercise
 
-This exercise is based on the corresponding complete example in `axis-acap-tip-workshop`.
-The source file `app/vdo_stream_blocking.c` has been reduced to a small TODO skeleton.
+This exercise is based on `vdo/vdo-stream-blocking` from the complete `axis-acap-tip-workshop` repository.
 
-Your task is to rebuild the application flow by pasting the snippet below into `app/vdo_stream_blocking.c`.
-The snippet is intentionally kept in the README so you can read the sequence before editing the C file.
+`app/vdo_stream_blocking.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
 
-## What to do
+## Step 1: Review manifest configuration
 
-1. Open `app/vdo_stream_blocking.c`.
-2. Replace the skeleton implementation with the code from **Implementation snippet** below.
-3. Read through the code and identify the API setup, runtime loop, and cleanup flow.
-4. Build the package with the commands in **Build**.
+This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
 
+## Step 2: Add build dependencies
 
-## Provided helper files
+Open `app/Makefile` and replace the TODO `PKGS` line with:
 
-These helper files are left in place so the exercise can focus on the main application flow:
+```make
+PKGS = gio-2.0 gio-unix-2.0 vdostream
+```
 
-- `app/panic.c`
+## Step 3: Add main setup snippet
 
-## Implementation snippet
-
-Paste this into `app/vdo_stream_blocking.c`:
+Paste this into `main()` at the next TODO position:
 
 ```c
-#include "vdo-error.h"
-#include "vdo-map.h"
-#include "vdo-stream.h"
-#include "vdo-types.h"
-
-#include <glib.h>
-#include <glib/gstdio.h>
-// Needed for g_autoptr
-#include <glib-object.h>
-#include <signal.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <syslog.h>
-
-#include "panic.h"
-
-#include <poll.h>
-#include <unistd.h>
-
- 
-
-static int handle_vdo_failed(GError* error) {
-    // Maintenance/Installation in progress (e.g. Global-Rotation)
-    if (vdo_error_is_expected(&error)) {
-        syslog(LOG_INFO, "Expected vdo error %s", error->message);
-        return EXIT_SUCCESS;
-    } else {
-        panic("Unexpected vdo error %s", error->message);
-    }
-    return EXIT_FAILURE;
-}
-
-
-int main(int argc, char** argv) {
-    (void)argc;
-    g_autoptr(GError) error = NULL;
+g_autoptr(GError) error = NULL;
     g_autoptr(VdoMap) settings = NULL;
     g_autoptr(VdoStream) stream = NULL;
     g_autoptr(VdoMap) info = NULL;
@@ -78,8 +39,14 @@ int main(int argc, char** argv) {
 
     if (!stream)
         return handle_vdo_failed(error);
+```
 
-    // Start stream
+## Step 4: Add main configuration snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+// Start stream
     if (!vdo_stream_start(stream, &error))
         return handle_vdo_failed(error);
 
@@ -95,9 +62,9 @@ int main(int argc, char** argv) {
     // Fetch 10 frames
     for (size_t i = 0; i < 10;)
     {
-    
+
         g_autoptr(VdoBuffer) vdo_buf = vdo_stream_get_buffer(stream, &error);
-        
+
         if (!vdo_buf && g_error_matches(error, VDO_ERROR, VDO_ERROR_NO_DATA)) {
             g_clear_error(&error);
             continue; // Transient Error -> Retry!
@@ -105,15 +72,21 @@ int main(int argc, char** argv) {
         if (!vdo_buf) {
             return handle_vdo_failed(error);
         }
+```
 
-        // Get frame metadata
+## Step 5: Add main runtime flow snippet
+
+Paste this into `main()` at the next TODO position:
+
+```c
+// Get frame metadata
         VdoFrame *frame = vdo_buffer_get_frame(vdo_buf);
 
         // Capture timestamp (microseconds)
         gint64 pts = vdo_frame_get_timestamp(frame);
 
         syslog(LOG_INFO, "<6>Format: H264 - Timestamp: %u us - Frame: %u, Size: %zu\n", (unsigned int)pts, vdo_frame_get_sequence_nbr(frame), vdo_frame_get_size(frame));
-        
+
         // Allow VDO to reuse frame
         if (!vdo_stream_buffer_unref(stream, &vdo_buf, &error))
         {
@@ -124,7 +97,6 @@ int main(int argc, char** argv) {
     }
 
     return EXIT_SUCCESS;
-}
 ```
 
 ## Build
@@ -140,11 +112,8 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera from the Apps page or with your usual ACAP install flow.
-If the application exposes HTTP endpoints or overlays, use the behavior described by the code comments and the parent module README to verify it.
+Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
 
 ## Reference
 
-The complete version lives in the original `axis-acap-tip-workshop` repository under the same relative path:
-
-`vdo/vdo-stream-blocking`
+Complete source: `vdo/vdo-stream-blocking` in `axis-acap-tip-workshop`.

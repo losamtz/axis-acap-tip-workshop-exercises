@@ -1,134 +1,27 @@
 # Bbox Multi View Exercise
 
-This exercise is based on the corresponding complete example in `axis-acap-tip-workshop`.
-The source file `app/bbox_multi_view.c` has been reduced to a small TODO skeleton.
+This exercise is based on `bbox/bbox-multi-view` from the complete `axis-acap-tip-workshop` repository.
 
-Your task is to rebuild the application flow by pasting the snippet below into `app/bbox_multi_view.c`.
-The snippet is intentionally kept in the README so you can read the sequence before editing the C file.
+`app/bbox_multi_view.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
 
-## What to do
+## Step 1: Review manifest configuration
 
-1. Open `app/bbox_multi_view.c`.
-2. Replace the skeleton implementation with the code from **Implementation snippet** below.
-3. Read through the code and identify the API setup, runtime loop, and cleanup flow.
-4. Build the package with the commands in **Build**.
+This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
 
+## Step 2: Add build dependencies
 
-## Implementation snippet
+Open `app/Makefile` and replace the TODO `PKGS` line with:
 
-Paste this into `app/bbox_multi_view.c`:
+```make
+PKGS = bbox gio-2.0 glib-2.0
+```
+
+## Step 3: Add main setup snippet
+
+Paste this into `main()` at the next TODO position:
 
 ```c
-#include <bbox.h>
-#include <glib-unix.h>
-#include <glib.h>
-#include <errno.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <syslog.h>
-#include <unistd.h>
-
-
-static double xpos = 0.0;  // starting x position
-static const double box_width = 0.1;
-static const double y = 0.3;
-static const double height = 0.1;
-static int dir = -1;
-
-
-
-__attribute__((noreturn)) __attribute__((format(printf, 1, 2))) static void
-panic(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    vsyslog(LOG_ERR, format, args);
-    va_end(args);
-
-    exit(EXIT_FAILURE);
-}
-
-
-static gboolean update_bbox(gpointer user_data) {
-    (void)user_data;
-
-    // Draw on a multiple views - 4 (4u): 1(1u), 2(2u), 3(3u) and 4(4u)
-    bbox_t* bbox = bbox_new(4u, 1u, 2u, 3u, 4u);
-    if (!bbox)
-        panic("Failed creating: %s", strerror(errno));
-
-    if (!bbox_video_output(bbox, true))
-    panic("Failed enabling video-output: %s", strerror(errno));
-    
-    //bbox_coordinates_frame_normalized(bbox);
-
-    bbox_clear(bbox);  // Remove all old bounding-boxes
-
-    // Create all needed colors [These operations are slow!]
-    //const bbox_color_t red   = bbox_color_from_rgb(0xff, 0x00, 0x00);
-    //const bbox_color_t blue  = bbox_color_from_rgb(0x00, 0x00, 0xff);
-    //const bbox_color_t green = bbox_color_from_rgb(0x00, 0xff, 0x00);
-    const bbox_color_t yellow = bbox_color_from_rgb(0xff, 0xff, 0x00);  // Yellow
-
-    bbox_style_corners(bbox);                      
-    bbox_thickness_medium(bbox);                     
-    bbox_color(bbox, yellow);                         
-
-    xpos += dir * 0.02;
-
-    // Change direction at bounds
-    if (xpos + box_width >= 1.0) {
-        xpos = 1.0 - box_width;  // clamp
-        dir = -1;  // switch to left
-    } else if (xpos <= 0.0) {
-        xpos = 0.0;
-        dir = 1;  // switch to right
-    }
-
-    bbox_rectangle(bbox, xpos, y, xpos + box_width, y + height);
-
-    // Draw all queued geometry simultaneously
-    if (!bbox_commit(bbox, 0u))
-        panic("Failed committing: %s", strerror(errno));
-
-    sleep(1);
-    bbox_destroy(bbox);
-    
-    return G_SOURCE_CONTINUE;  // keep the timer running
-}
-
-static void clear(void) {
-    // Draw on a single channel: 1
-    bbox_t* bbox = bbox_new(1u, 1u);
-    if (!bbox)
-        panic("Failed creating: %s", strerror(errno));
-
-    bbox_clear(bbox);  // Remove all old bounding-boxes
-
-    // Clear everything simultaneously
-    if (!bbox_commit(bbox, 0u))
-        panic("Failed committing: %s", strerror(errno));
-
-    
-    sleep(1);
-    bbox_destroy(bbox);
-}
-static gboolean signal_handler(gpointer loop) {
-    g_main_loop_quit((GMainLoop*)loop);
-    
-    clear();
-    syslog(LOG_INFO, "Application was stopped by SIGTERM or SIGINT.");
-
-    return G_SOURCE_REMOVE;
-}
-
-int main(void) {
-
-    GMainLoop *loop = NULL;
+GMainLoop *loop = NULL;
     openlog(NULL, LOG_PID | LOG_CONS, LOG_USER);
     loop = g_main_loop_new(NULL, FALSE);
     // Handle SIGTERM/SIGINT
@@ -137,14 +30,12 @@ int main(void) {
 
     // Add update loop every 100ms
     g_timeout_add(100, update_bbox, NULL);
-    
 
     g_main_loop_run(loop);
 
     clear();
 
     return EXIT_SUCCESS;
-}
 ```
 
 ## Build
@@ -160,11 +51,8 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera from the Apps page or with your usual ACAP install flow.
-If the application exposes HTTP endpoints or overlays, use the behavior described by the code comments and the parent module README to verify it.
+Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
 
 ## Reference
 
-The complete version lives in the original `axis-acap-tip-workshop` repository under the same relative path:
-
-`bbox/bbox-multi-view`
+Complete source: `bbox/bbox-multi-view` in `axis-acap-tip-workshop`.

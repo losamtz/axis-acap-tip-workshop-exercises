@@ -1,26 +1,36 @@
-/*
- * Exercise skeleton for vdo_utilities.
- *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
- */
+#include "vdo-error.h"
+#include "vdo-map.h"
+#include "vdo-stream.h"
+#include "vdo-types.h"
+#include <vdo-channel.h>
+#include "panic.h"
+#include "utilities.h"
 
+#include <glib-unix.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <gmodule.h>
+
+#define WITH 640
+#define HEIGHT 360
+
+static int handle_vdo_failed(GError* error) {
+    // Maintenance/Installation in progress (e.g. Global-Rotation)
+    if (vdo_error_is_expected(&error)) {
+        syslog(LOG_INFO, "Expected vdo error %s", error->message);
+        return EXIT_SUCCESS;
+    } else {
+        panic("Unexpected vdo error %s", error->message);
+    }
+    return EXIT_FAILURE;
+}
 
 int main(void) {
-    openlog("vdo_utilities", LOG_PID, LOG_USER);
+    /* TODO 1: Review the README steps for manifest and Makefile changes. */
+    /* TODO 2: Paste the setup snippet into this main function. */
+    /* TODO 3: Paste the runtime/API workflow snippets in order. */
+    /* TODO 4: Paste the cleanup snippet at the end. */
 
-    syslog(LOG_INFO, "vdo_utilities exercise skeleton started");
-
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
-
-    syslog(LOG_INFO, "TODO: complete vdo_utilities.c using the README implementation snippet");
-
-    closelog();
-    return EXIT_SUCCESS;
+    return 0;
 }

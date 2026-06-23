@@ -1,173 +1,96 @@
 # Parameter Custom Interface Exercise
 
-This exercise is based on the corresponding complete example in `axis-acap-tip-workshop`.
-The source file `app/parameter_custom_interface.c` has been reduced to a small TODO skeleton.
+This exercise connects application settings from a custom settings page to device system parameters. The callbacks are already present in `app/parameter_custom_interface.c` so the exercise can focus on configuration and the AXParameter setup flow.
 
-Your task is to rebuild the application flow by pasting the snippet below into `app/parameter_custom_interface.c`.
-The snippet is intentionally kept in the README so you can read the sequence before editing the C file.
+The provided callbacks update:
 
-## What to do
-
-1. Open `app/parameter_custom_interface.c`.
-2. Replace the skeleton implementation with the code from **Implementation snippet** below.
-3. Read through the code and identify the API setup, runtime loop, and cleanup flow.
-4. Build the package with the commands in **Build**.
-
+- `root.Network.RTP.R0.VideoAddress`
+- `root.Network.RTP.R0.VideoPort`
 
 ## Provided helper files
 
-These helper files are left in place so the exercise can focus on the main application flow:
+These files are kept complete:
 
 - `app/panic.c`
+- `app/panic.h`
 
-## Implementation snippet
+## Step 1: Add manifest configuration
 
-Paste this into `app/parameter_custom_interface.c`:
+Open `app/manifest.json` and add this `configuration` object inside `acapPackageConf`, after the `setup` object:
+
+```json
+"configuration": {
+  "settingPage": "index.html",
+  "paramConfig": [
+    {
+      "name": "MulticastAddress",
+      "default": "224.0.0.1",
+      "type": "string:maxlen=64"
+    },
+    {
+      "name": "MulticastPort",
+      "default": "1024",
+      "type": "int:maxlen=5;min=1024;max=65535"
+    }
+  ]
+}
+```
+
+Keep the JSON comma between `setup` and `configuration` valid.
+
+## Step 2: Add AXParameter to the Makefile
+
+Open `app/Makefile` and add `axparameter` to `PKGS`:
+
+```make
+PKGS = glib-2.0 gio-2.0 axparameter
+```
+
+## Step 3: Create the AXParameter handle
+
+Paste this at `TODO 3` in `main()`:
 
 ```c
-#include <axsdk/axparameter.h>
-#include <glib-unix.h>
-#include <stdbool.h>
-#include <syslog.h>
-#include <libgen.h>
-#include <assert.h>
-#include <stdarg.h>
-#include "panic.h"
+axparameter = ax_parameter_new(app_name, &error);
+if (!axparameter) {
+    panic("ax_parameter_new failed: %s", error->message);
+}
+```
 
+## Step 4: Register callbacks
 
-static GMainLoop *main_loop = NULL;
-static AXParameter *axparameter = NULL;
+Paste this at `TODO 4`:
 
-guint32 multicastPort = 0;    // Default value for the MulticastPort parameter
-guint16 multicastAddress = 0; // Default value for the MulticastAddress parameter
-
-struct message
-{
-    char *name;
-    char *value;
-};
-
-static gboolean signal_handler(gpointer main_loop)
-{
-    g_main_loop_quit((GMainLoop *)main_loop);
-    syslog(LOG_INFO, "Application was stopped by SIGTERM or SIGINT.");
-    return G_SOURCE_REMOVE;
+```c
+if (!ax_parameter_register_callback(axparameter,
+                                    "MulticastAddress",
+                                    multicast_address_callback,
+                                    NULL,
+                                    &error)) {
+    panic("register MulticastAddress failed: %s", error->message);
 }
 
-static gboolean set_parameter(void *msg_ptr)
-{
-    GError *error = NULL;
-    struct message *msg = msg_ptr;
-
-    // Set the parameter with the given name to the given value.
-    if (!ax_parameter_set(axparameter, msg->name, msg->value, TRUE, &error))
-        panic("%s", error->message);
-
-    syslog(LOG_INFO, "[set-param] Parameter '%s' set to '%s'", msg->name, msg->value);
-
-    free(msg->name);
-    free(msg->value);
-    free(msg);
-    return FALSE;
+if (!ax_parameter_register_callback(axparameter,
+                                    "MulticastPort",
+                                    multicast_port_callback,
+                                    NULL,
+                                    &error)) {
+    panic("register MulticastPort failed: %s", error->message);
 }
+```
 
+## Step 5: Run the GLib loop and clean up
 
-static void multicast_address_callback(const gchar *name, const gchar *value, gpointer user_data)
-{
-    (void)user_data; // Unused parameter
-    if (NULL == value)
-    {
-        syslog(LOG_ERR, "[multicast-address-callback] Unexpected NULL value for %s", name);
-        return;
-    }
-    syslog(LOG_INFO, "[multicast-address-callback] MulticastAddress parameter changed to '%s'", (char *)value);
+Paste this at `TODO 5`:
 
-    struct message *msg = malloc(sizeof(struct message));
-    char *param_to_change = "root.Network.RTP.R0.VideoAddress";
+```c
+main_loop = g_main_loop_new(NULL, FALSE);
+g_unix_signal_add(SIGTERM, signal_handler, main_loop);
+g_unix_signal_add(SIGINT, signal_handler, main_loop);
+g_main_loop_run(main_loop);
 
-    msg->name = strdup(param_to_change);
-    msg->value = strdup(value);
-
-    g_timeout_add_seconds(1, set_parameter, msg);
-
-    const int new_multicastAddress = atoi(value);
-    multicastAddress = new_multicastAddress;
-    syslog(LOG_INFO, "[multicast-address-callback] MulticastAddress set to %s", value);
-}
-static void multicast_port_callback(const gchar *name, const gchar *value, gpointer user_data)
-{
-    (void)user_data; // Unused parameter
-    if (NULL == value)
-    {
-        syslog(LOG_ERR, "[multicast-port-callback] Unexpected NULL value for %s", name);
-        return;
-    }
-    syslog(LOG_INFO, "[multicast-port-callback] MulticastPort parameter changed to '%s'", (char *)value);
-
-    struct message *msg = malloc(sizeof(struct message));
-    char *param_to_change = "root.Network.RTP.R0.VideoPort";
-
-    msg->name = strdup(param_to_change);
-    msg->value = strdup(value);
-
-    // set_parameter(axparameter, "root.Network.RTP.R0.VideoPort", (char*)value); // might need a settimeout
-    g_timeout_add_seconds(1, set_parameter, msg);
-
-    multicastPort = atoi(value);
-}
-
-
-
-int main(int argc, char **argv)
-{
-    (void)argc;
-    GError *error = NULL;
-    char *app_name = basename(argv[0]);
-
-    openlog(app_name, LOG_PID, LOG_USER);
-
-    int ret = EXIT_SUCCESS;
-    syslog(LOG_INFO, "Starting %s", app_name);
-
-    // Initialize the AXParameter handle
-    syslog(LOG_INFO, "Initializing AXParameter handle ...");
-
-    axparameter = ax_parameter_new(app_name, &error);
-
-    if (axparameter == NULL)
-        panic("%s", error->message);
-
-    syslog(LOG_INFO, "Starting handle");
-    
-    // 2- register callbacks for the parameters
-    if(!ax_parameter_register_callback(axparameter, "MulticastAddress", multicast_address_callback, NULL, &error))
-        panic("%s", error->message);
-
-    if(!ax_parameter_register_callback(axparameter, "MulticastPort", multicast_port_callback, NULL, &error))
-        panic("%s", error->message);
-
-    syslog(LOG_INFO, "All parameters callbacks registered successfully");
-
-    // 3 - Start listening to callbacks by launching a GLib main loop.
-    main_loop = g_main_loop_new(NULL, FALSE);
-
-    g_unix_signal_add(SIGTERM, signal_handler, main_loop);
-    g_unix_signal_add(SIGINT, signal_handler, main_loop);
-    g_main_loop_run(main_loop);
-
-    // 4 - Cleanup
-    syslog(LOG_INFO, "Cleaning up resources ...");
-    syslog(LOG_INFO, "Stopping %s", app_name);
-    // Unregister the callbacks
-    g_main_loop_unref(main_loop);
-
-    syslog(LOG_INFO, "Unregistering callbacks and freeing parameter handle ...");
-    ax_parameter_free(axparameter);
-
-    syslog(LOG_INFO, "Closing syslog ...");
-    closelog();
-    return ret;
-}
+g_main_loop_unref(main_loop);
+ax_parameter_free(axparameter);
 ```
 
 ## Build
@@ -183,11 +106,4 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera from the Apps page or with your usual ACAP install flow.
-If the application exposes HTTP endpoints or overlays, use the behavior described by the code comments and the parent module README to verify it.
-
-## Reference
-
-The complete version lives in the original `axis-acap-tip-workshop` repository under the same relative path:
-
-`parameter/parameter-custom-interface`
+Install the application, open the app settings page, change the multicast address or port, and inspect the application log. The callbacks should write the new values to the corresponding system parameters.

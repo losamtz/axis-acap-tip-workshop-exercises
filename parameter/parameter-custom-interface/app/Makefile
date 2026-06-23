@@ -2,7 +2,8 @@ PROGS     = parameter_custom_interface
 SRCS      = $(wildcard *.c)
 OBJS      = $(SRCS:.c=.o)
 
-PKGS = glib-2.0 gio-2.0 axparameter
+# TODO: Add axparameter to this package list in Step 2.
+PKGS = glib-2.0 gio-2.0
 
 CFLAGS += $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --cflags $(PKGS))
 LDLIBS += $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --libs $(PKGS))

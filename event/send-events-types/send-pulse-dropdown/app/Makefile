@@ -1,6 +1,7 @@
 PROG = send_pulse_drop_down
 
-PKGS = glib-2.0 axevent
+# TODO: Add the API/library packages shown in README.md.
+PKGS = glib-2.0
 CFLAGS += $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --cflags $(PKGS))
 LDLIBS += $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --libs $(PKGS))
 

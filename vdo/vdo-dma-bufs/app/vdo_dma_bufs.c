@@ -1,26 +1,175 @@
-/*
- * Exercise skeleton for vdo_dma_bufs.
- *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
- */
 
-#include <stdlib.h>
+#include "panic.h"
+#include "channel_utils.h"
+
+#include "vdo-frame.h"
+#include "vdo-types.h"
+#include <bbox.h>
+
+#include <math.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/time.h>
+#include <sys/mman.h>
 #include <syslog.h>
+#include <poll.h>
 
-int main(void) {
-    openlog("vdo_dma_bufs", LOG_PID, LOG_USER);
+#define APP_NAME "vdo_dma_buffers"
 
-    syslog(LOG_INFO, "vdo_dma_bufs exercise skeleton started");
+#define MODEL_INPUT_W 640
+#define MODEL_INPUT_H 640
 
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
+volatile sig_atomic_t running = 1;
 
-    syslog(LOG_INFO, "TODO: complete vdo_dma_bufs.c using the README implementation snippet");
+static void shutdown(int status) {
+    (void)status;
+    running = 0;
+}
+static int handle_vdo_failed(GError* error) {
+    // Maintenance/Installation in progress (e.g. Global-Rotation)
+    if (vdo_error_is_expected(&error)) {
+        syslog(LOG_INFO, "Expected vdo error %s", error->message);
+        return EXIT_SUCCESS;
+    } else {
+        panic("Unexpected vdo error %s", error->message);
+    }
+    return EXIT_FAILURE;
+}
 
-    closelog();
-    return EXIT_SUCCESS;
+static VdoStream* create_new_vdo_stream(unsigned int channel,
+                                        double framerate) {
+
+    g_autoptr(VdoMap) vdo_settings = vdo_map_new();
+    g_autoptr(GError) error        = NULL;
+
+    if (!vdo_settings) {
+        panic("%s: Failed to create vdo_map", __func__);
+    }
+
+    vdo_map_set_uint32(vdo_settings, "channel", channel);
+    // format is the image format that is supplied from vdo
+    vdo_map_set_uint32(vdo_settings, "format", VDO_FORMAT_YUV);
+    // Set initial framerate
+    vdo_map_set_double(vdo_settings, "framerate", framerate);
+
+    VdoPair32u resolution = {
+        .w = MODEL_INPUT_W,
+        .h = MODEL_INPUT_H,
+    };
+    vdo_map_set_pair32u(vdo_settings, "resolution", resolution);
+    // Make it possible to change the framerate for the stream after it is started
+    vdo_map_set_boolean(vdo_settings, "dynamic.framerate", true);
+    // It is not needed to set buffer.strategy since VDO_BUFFER_STRATEGY_INFINITE is default
+    // vdo_map_set_uint32(vdo_settings, "buffer.strategy", VDO_BUFFER_STRATEGY_INFINITE);
+
+    // The number of buffers that vdo will allocate for this stream
+    // Normally two buffers are enough and using too many buffers will use
+    // more memory in the product
+    vdo_map_set_uint32(vdo_settings, "buffer.count", 2);
+    // The vdo_stream_get_buffer is non blocking and will return immediately
+    // Then we need to poll instead when it is ok to get a buffer
+    vdo_map_set_boolean(vdo_settings, "socket.blocking", false);
+    vdo_map_set_string(vdo_settings, "image.fit", "scale");
+    /*
+     * This sample only reads camera frames. VDO owns the buffers and exposes
+     * them to the app as file descriptors. The default consumer access is
+     * enough for demonstrating DMA-BUF inspection.
+     */
+
+    // Create a vdo stream using the vdoMap filled in above
+    g_autoptr(VdoStream) vdo_stream = vdo_stream_new(vdo_settings, NULL, &error);
+    if (!vdo_stream) {
+        panic("%s: Failed creating vdo stream: %s", __func__, error->message);
+    }
+    syslog(LOG_INFO, "Dump of vdo stream settings map =====");
+    vdo_map_dump(vdo_settings);
+
+    return g_steal_pointer(&vdo_stream);
+}
+
+static void log_stream_info(VdoStream* stream) {
+    g_autoptr(GError) error = NULL;
+    g_autoptr(VdoMap) info = vdo_stream_get_info(stream, &error);
+
+    if (!info) {
+        panic("%s: Failed to get vdo stream info: %s", __func__, error->message);
+    }
+
+    const char* buffer_type = vdo_map_get_string(info, "buffer.type", NULL, "unknown");
+    syslog(LOG_INFO,
+           "Stream info: %ux%u pitch=%u format=%u buffer.type=%s buffers=%u",
+           vdo_map_get_uint32(info, "width", 0),
+           vdo_map_get_uint32(info, "height", 0),
+           vdo_map_get_uint32(info, "pitch", 0),
+           vdo_map_get_uint32(info, "format", 0),
+           buffer_type,
+           vdo_map_get_uint32(info, "buffer.count", 0));
+}
+
+static void inspect_dma_buffer(VdoBuffer* buffer) {
+    int fd = vdo_buffer_get_fd(buffer);
+
+    if (fd < 0) {
+        syslog(LOG_WARNING, "VDO buffer has no fd");
+        return;
+    }
+
+    int64_t offset = vdo_buffer_get_offset(buffer);
+    size_t capacity = vdo_buffer_get_capacity(buffer);
+    VdoFrame* frame = vdo_buffer_get_frame(buffer);
+    size_t frame_size = frame ? vdo_frame_get_size(frame) : 0;
+
+    syslog(LOG_INFO,
+           "DMA-BUF fd=%d offset=%" G_GINT64_FORMAT " capacity=%zu frame_size=%zu",
+           fd,
+           offset,
+           capacity,
+           frame_size);
+
+    void* mapped = mmap(NULL, capacity, PROT_READ, MAP_SHARED, fd, 0);
+
+    if (mapped == MAP_FAILED) {
+        syslog(LOG_ERR, "mmap failed: %s", strerror(errno));
+        return;
+    }
+
+    uint8_t* bytes = (uint8_t*)mapped;
+    size_t start = offset >= 0 ? (size_t)offset : 0u;
+    size_t bytes_to_dump = 32u;
+
+    if (start >= capacity) {
+        syslog(LOG_WARNING, "Buffer offset is outside capacity");
+        munmap(mapped, capacity);
+        return;
+    }
+    if (start + bytes_to_dump > capacity) {
+        bytes_to_dump = capacity - start;
+    }
+
+    char dump[128] = {0};
+    char tmp[16];
+
+    for (size_t i = 0; i < bytes_to_dump; i++) {
+        snprintf(tmp, sizeof(tmp), "%02X ", bytes[start + i]);
+        strncat(dump,
+                tmp,
+                sizeof(dump) - strlen(dump) - 1);
+    }
+
+    syslog(LOG_INFO, "First %zu bytes at image offset: %s", bytes_to_dump, dump);
+    munmap(mapped, capacity);
+}
+
+int main(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
+
+    /* TODO 1: Review the README steps for manifest and Makefile changes. */
+    /* TODO 2: Paste the setup snippet into this main function. */
+    /* TODO 3: Paste the runtime/API workflow snippets in order. */
+    /* TODO 4: Paste the cleanup snippet at the end. */
+
+    return 0;
 }

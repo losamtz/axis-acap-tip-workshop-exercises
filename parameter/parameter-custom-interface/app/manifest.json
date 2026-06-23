@@ -23,21 +23,6 @@
                     "max": "13"
                 }
             ]
-        },
-        "configuration": {
-            "settingPage": "index.html",
-            "paramConfig": [
-                {
-                    "name": "MulticastAddress",
-                    "default": "224.0.0.1",
-                    "type": "string:maxlen=64"
-                },
-                {
-                    "name": "MulticastPort",
-                    "default": "1024",
-                    "type": "int:maxlen=5;min=1024;max=65535"
-                }
-            ]
         }
     }
 }

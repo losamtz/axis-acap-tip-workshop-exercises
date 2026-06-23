@@ -1,115 +1,27 @@
 # Dynamic Overlay Vapix Exercise
 
-This exercise is based on the corresponding complete example in `axis-acap-tip-workshop`.
-The source file `app/dynamic_overlay_vapix.c` has been reduced to a small TODO skeleton.
+This exercise is based on `vapix/dynamic-overlay-vapix` from the complete `axis-acap-tip-workshop` repository.
 
-Your task is to rebuild the application flow by pasting the snippet below into `app/dynamic_overlay_vapix.c`.
-The snippet is intentionally kept in the README so you can read the sequence before editing the C file.
+`app/dynamic_overlay_vapix.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
 
-## What to do
+## Step 1: Review manifest configuration
 
-1. Open `app/dynamic_overlay_vapix.c`.
-2. Replace the skeleton implementation with the code from **Implementation snippet** below.
-3. Read through the code and identify the API setup, runtime loop, and cleanup flow.
-4. Build the package with the commands in **Build**.
+This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
 
+## Step 2: Add build dependencies
 
-## Provided helper files
+Open `app/Makefile` and replace the TODO `PKGS` line with:
 
-These helper files are left in place so the exercise can focus on the main application flow:
+```make
+PKGS = gio-2.0 libcurl jansson
+```
 
-- `app/curl-request.c`
-- `app/panic.c`
-- `app/vapix-credentials.c`
+## Step 3: Add main setup snippet
 
-## Implementation snippet
-
-Paste this into `app/dynamic_overlay_vapix.c`:
+Paste this into `main()` at the next TODO position:
 
 ```c
-#include <curl/curl.h>
-#include <gio/gio.h>
-#include <jansson.h>
-#include <syslog.h>
-#include "panic.h"
-#include "vapix-credentials.h"
-#include "curl-request.h"
-
-
-static json_t* build_addtext_request(void) {
-    json_t* root = json_object();
-    json_t* params = json_object();
-
-    // Fill the "params" object
-    json_object_set_new(params, "camera", json_integer(1));
-    json_object_set_new(params, "text", json_string("AXIS TIP Paris workshop - Date: %c"));
-    json_object_set_new(params, "position", json_string("topLeft"));
-    json_object_set_new(params, "textColor", json_string("white"));
-    json_object_set_new(params, "fontSize", json_integer(60));
-    json_object_set_new(params, "textBGColor", json_string("black"));
-
-    // Fill the root object
-    json_object_set_new(root, "apiVersion", json_string("1.0"));
-    json_object_set_new(root, "context", json_string("abc"));
-    json_object_set_new(root, "method", json_string("addText"));
-    json_object_set_new(root, "params", params);
-
-    return root;
-}
-
-static json_t*
-vapix_post_json(CURL* handle, const char* credentials, const char* endpoint, const char* request) {
-    char* text_response = vapix_post(handle, credentials, endpoint, request);
-    json_error_t parse_error;
-    json_t* json_response = json_loads(text_response, 0, &parse_error);
-    if (!json_response)
-        panic("Invalid JSON response: %s", parse_error.text);
-
-    const json_t* request_error = json_object_get(json_response, "error");
-    if (request_error)
-        panic("Failed to perform request: %s",
-              json_string_value(json_object_get(request_error, "message")));
-
-    free(text_response);
-    return json_response;
-}
-
-static json_t* add_text(CURL* handle, const char* credentials) {
-    const char* endpoint = "/axis-cgi/dynamicoverlay/dynamicoverlay.cgi";
-
-    
-    json_t* request_obj = build_addtext_request();
-    char* request = json_dumps(request_obj, JSON_COMPACT);
-
-    return vapix_post_json(handle, credentials, endpoint, request);
-}
-
-static const char* response_data(const json_t* props, const char* prop_name) {
-
-    const json_t* data = json_object_get(props, "data");
-
-    if (!json_is_object(data)) {
-        syslog(LOG_WARNING, "'data' field is missing or not an object");
-        return NULL;
-    }
-
-    const json_t* value = json_object_get(data, prop_name);
-
-    if (json_is_string(value)) {
-        return json_string_value(value);
-    } else if (json_is_integer(value)) {
-        // Static buffer for integer to string conversion
-        static char buf[32];
-        snprintf(buf, sizeof(buf), "%" JSON_INTEGER_FORMAT, json_integer_value(value));
-        return buf;
-    } else {
-        syslog(LOG_WARNING, "Property '%s' not found or not string/integer", prop_name);
-        return NULL;
-    }
-}
-
-int main(void) {
-    openlog(NULL, LOG_PID, LOG_USER);
+openlog(NULL, LOG_PID, LOG_USER);
 
     syslog(LOG_INFO, "Curl version %s", curl_version_info(CURLVERSION_NOW)->version);
     syslog(LOG_INFO, "Jansson version %s", JANSSON_VERSION);
@@ -126,13 +38,12 @@ int main(void) {
 
     syslog(LOG_INFO, "Camera: %s", response_data(response, "camera"));
     syslog(LOG_INFO, "Identity: %s", response_data(response, "identity"));
-    
+
     free(debug_str);
     json_decref(response);
     free(credentials);
     curl_easy_cleanup(handle);
     curl_global_cleanup();
-}
 ```
 
 ## Build
@@ -148,11 +59,8 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera from the Apps page or with your usual ACAP install flow.
-If the application exposes HTTP endpoints or overlays, use the behavior described by the code comments and the parent module README to verify it.
+Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
 
 ## Reference
 
-The complete version lives in the original `axis-acap-tip-workshop` repository under the same relative path:
-
-`vapix/dynamic-overlay-vapix`
+Complete source: `vapix/dynamic-overlay-vapix` in `axis-acap-tip-workshop`.

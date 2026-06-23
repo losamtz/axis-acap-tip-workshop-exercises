@@ -7,7 +7,8 @@ PROGS  = $(PROG1)
 SYSROOT ?= /opt/axis/acapsdk/sysroots/aarch64
 
 # Only pkg-config packages that actually have .pc files in the SDK
-PKGS = glib-2.0 gio-2.0 jansson axparameter
+# TODO: Add the API/library packages shown in README.md.
+PKGS = glib-2.0 gio-2.0
 
 # CivetWeb is provided without pkg-config; point these to where you staged it
 CIVETWEB_PREFIX ?= /opt/build/civetweb

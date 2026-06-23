@@ -3,7 +3,8 @@ OBJS1	= $(PROG1).c postprocess.c
 PROGS	= $(PROG1)
 DEBUG_DIR = debug
 
-PKGS = bbox gio-2.0 gio-unix-2.0 liblarod vdostream
+# TODO: Add the API/library packages shown in README.md.
+PKGS = gio-2.0 gio-unix-2.0
 
 LDLIBS += -lm
 

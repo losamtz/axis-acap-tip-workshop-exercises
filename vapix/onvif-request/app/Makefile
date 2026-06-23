@@ -2,7 +2,8 @@ PROGS     = onvif_request
 SRCS      = $(wildcard *.c)
 OBJS      = $(SRCS:.c=.o)
 
-PKGS = glib-2.0 gio-2.0 libcurl
+# TODO: Add the API/library packages shown in README.md.
+PKGS = glib-2.0 gio-2.0
 
 CFLAGS += $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --cflags $(PKGS))
 LDLIBS += $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) pkg-config --libs $(PKGS))

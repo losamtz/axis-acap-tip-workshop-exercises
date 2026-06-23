@@ -1,26 +1,41 @@
-/*
- * Exercise skeleton for larod_client_tool.
+/**
+ * Copyright (C) 2021, Axis Communications AB, Lund, Sweden
  *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-#include <stdlib.h>
+/**
+ * - larod_client_tool -
+ *
+ * This application writes "Larod client tool to enable ssh developer mode, started!" to the syslog.
+ * It is only to create an ACAP user to create access to ssh user in developer mode.
+ */
+
 #include <syslog.h>
 
+/***** Main function *********************************************************/
+
+/**
+ * brief Main function.
+ *
+ * This main function writes "Larod client tool to enable ssh developer mode" to the syslog.
+ */
+
 int main(void) {
-    openlog("larod_client_tool", LOG_PID, LOG_USER);
+    /* TODO 1: Review the README steps for manifest and Makefile changes. */
+    /* TODO 2: Paste the setup snippet into this main function. */
+    /* TODO 3: Paste the runtime/API workflow snippets in order. */
+    /* TODO 4: Paste the cleanup snippet at the end. */
 
-    syslog(LOG_INFO, "larod_client_tool exercise skeleton started");
-
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
-
-    syslog(LOG_INFO, "TODO: complete larod_client_tool.c using the README implementation snippet");
-
-    closelog();
-    return EXIT_SUCCESS;
+    return 0;
 }

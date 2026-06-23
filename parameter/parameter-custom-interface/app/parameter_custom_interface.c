@@ -1,25 +1,101 @@
 /*
- * Exercise skeleton for parameter_custom_interface.
+ * Parameter custom interface exercise skeleton.
  *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
+ * The signal handler, delayed setter, and callbacks are provided. Follow
+ * README.md to add the manifest configuration, Makefile dependency,
+ * AXParameter handle setup, callback registration, main loop, and cleanup.
  */
 
+#include <axsdk/axparameter.h>
+#include <glib-unix.h>
+#include <libgen.h>
+#include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <syslog.h>
 
-int main(void) {
-    openlog("parameter_custom_interface", LOG_PID, LOG_USER);
+#include "panic.h"
 
-    syslog(LOG_INFO, "parameter_custom_interface exercise skeleton started");
+static GMainLoop* main_loop = NULL;
+static AXParameter* axparameter = NULL;
 
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
+struct message {
+    char* name;
+    char* value;
+};
 
-    syslog(LOG_INFO, "TODO: complete parameter_custom_interface.c using the README implementation snippet");
+static gboolean signal_handler(gpointer loop) {
+    g_main_loop_quit((GMainLoop*)loop);
+    syslog(LOG_INFO, "Application was stopped by SIGTERM or SIGINT.");
+    return G_SOURCE_REMOVE;
+}
+
+static gboolean set_parameter(void* msg_ptr) {
+    GError* error = NULL;
+    struct message* msg = msg_ptr;
+
+    if (!ax_parameter_set(axparameter, msg->name, msg->value, TRUE, &error)) {
+        panic("%s", error->message);
+    }
+
+    syslog(LOG_INFO, "[set-param] Parameter '%s' set to '%s'", msg->name, msg->value);
+
+    free(msg->name);
+    free(msg->value);
+    free(msg);
+    return G_SOURCE_REMOVE;
+}
+
+static void multicast_address_callback(const gchar* name,
+                                       const gchar* value,
+                                       gpointer user_data) {
+    (void)user_data;
+    if (!value) {
+        syslog(LOG_ERR, "Unexpected NULL value for %s", name);
+        return;
+    }
+
+    struct message* msg = malloc(sizeof(struct message));
+    msg->name = strdup("root.Network.RTP.R0.VideoAddress");
+    msg->value = strdup(value);
+    g_timeout_add_seconds(1, set_parameter, msg);
+
+    syslog(LOG_INFO, "MulticastAddress changed to '%s'", value);
+}
+
+static void multicast_port_callback(const gchar* name,
+                                    const gchar* value,
+                                    gpointer user_data) {
+    (void)user_data;
+    if (!value) {
+        syslog(LOG_ERR, "Unexpected NULL value for %s", name);
+        return;
+    }
+
+    struct message* msg = malloc(sizeof(struct message));
+    msg->name = strdup("root.Network.RTP.R0.VideoPort");
+    msg->value = strdup(value);
+    g_timeout_add_seconds(1, set_parameter, msg);
+
+    syslog(LOG_INFO, "MulticastPort changed to '%s'", value);
+}
+
+int main(int argc, char** argv) {
+    (void)argc;
+    GError* error = NULL;
+    char* app_name = basename(argv[0]);
+
+    openlog(app_name, LOG_PID, LOG_USER);
+    syslog(LOG_INFO, "Starting %s", app_name);
+
+    /* TODO 1: Add settingPage and paramConfig to manifest.json. */
+    /* TODO 2: Add axparameter to the Makefile PKGS line. */
+
+    /* TODO 3: Create the AXParameter handle here. */
+
+    /* TODO 4: Register callbacks for MulticastAddress and MulticastPort here. */
+
+    /* TODO 5: Create the GLib main loop, register signals, run, then clean up. */
 
     closelog();
     return EXIT_SUCCESS;

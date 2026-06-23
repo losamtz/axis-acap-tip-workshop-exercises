@@ -1,26 +1,169 @@
-/*
- * Exercise skeleton for send_state_with_data.
+/**
+ * Copyright (C) 2021, Axis Communications AB, Lund, Sweden
  *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-#include <stdlib.h>
+
+#include <stdio.h>
 #include <syslog.h>
+#include <time.h>
+#include <axsdk/axevent.h>
+#include <glib-object.h>
+#include <glib.h>
 
-int main(void) {
-    openlog("send_state_with_data", LOG_PID, LOG_USER);
+#define LOG(fmt, args...)    { syslog(LOG_INFO, fmt, ## args); printf(fmt, ## args); }
+#define LOG_ERROR(fmt, args...)    { syslog(LOG_CRIT, fmt, ## args); printf(fmt, ## args); }
 
-    syslog(LOG_INFO, "send_state_with_data exercise skeleton started");
+typedef struct {
+    AXEventHandler* event_handler;
+    guint event_id;
+    guint timer;
+    guint value;
+} AppData;
 
-    /* TODO 1: Add the API-specific headers, constants, and global state from README.md. */
-    /* TODO 2: Add helper functions, callbacks, and request handlers from README.md. */
-    /* TODO 3: Replace this minimal main() with the setup and runtime flow from README.md. */
-    /* TODO 4: Add cleanup/shutdown code at the end of the runtime flow. */
+static AppData* app_data = NULL;
 
-    syslog(LOG_INFO, "TODO: complete send_state_with_data.c using the README implementation snippet");
 
-    closelog();
-    return EXIT_SUCCESS;
+/**
+ * brief Send event.
+ *
+ * Send the previously declared event.
+ *
+ * param send_data Application data containing e.g. the event declaration id.
+ * return TRUE
+ */
+static gboolean send_event(AppData* send_data) {
+   AXEventKeyValueSet *key_value_set = NULL;
+    AXEvent  *event                   = NULL;
+    //GDateTime *time_stamp;
+    
+    key_value_set = ax_event_key_value_set_new();
+
+    ax_event_key_value_set_add_key_value( key_value_set, "active", NULL, &send_data->value, AX_VALUE_TYPE_BOOL, NULL);
+    ax_event_key_value_set_add_key_value(key_value_set, "triggerTime", NULL, "today", AX_VALUE_TYPE_STRING, NULL);
+    ax_event_key_value_set_add_key_value(key_value_set, "classTypes", NULL, "car", AX_VALUE_TYPE_STRING, NULL);
+    ax_event_key_value_set_add_key_value(key_value_set, "scenarioType",NULL, "scenario1", AX_VALUE_TYPE_STRING, NULL);
+    ax_event_key_value_set_add_key_value(key_value_set, "objectId", NULL, "1", AX_VALUE_TYPE_STRING, NULL);
+
+
+    //time_stamp = g_date_time_new_now_local();
+
+    // Create the event
+    // Use ax_event_new2 since ax_event_new is deprecated from 3.2
+    event = ax_event_new2(key_value_set, NULL);
+    
+    // The key/value set is no longer needed
+    ax_event_key_value_set_free(key_value_set);
+
+    if(!ax_event_handler_send_event(send_data->event_handler, send_data->event_id, event, NULL))
+      LOG_ERROR("Could not fire event\n");
+    ax_event_free(event);
+    //g_date_time_unref(time_stamp);
+
+
+    send_data->value = !send_data->value;
+    
+    // Returning TRUE keeps the timer going
+    return TRUE;
+}
+
+
+static void declaration_complete(guint declaration, int *value) {
+  syslog(LOG_INFO, "Declaration complete for: %d", declaration);
+
+    app_data->value = *value;
+
+    // Set up a timer to be called every 10th second
+    app_data->timer = g_timeout_add_seconds(5, (GSourceFunc)send_event, app_data);
+}
+
+
+static guint setup_declaration(AXEventHandler* event_handler, guint *start_value) {
+    AXEventKeyValueSet* key_value_set = NULL;
+    guint declaration                 = 0;
+    GError* error                     = NULL;
+
+    // Create keys, namespaces and nice names for the event
+    key_value_set = ax_event_key_value_set_new();
+
+    ax_event_key_value_set_add_key_value(key_value_set,
+                                         "topic0",
+                                         "tnsaxis",
+                                         "CameraApplicationPlatform",
+                                         AX_VALUE_TYPE_STRING,
+                                         NULL);
+    ax_event_key_value_set_add_key_value(key_value_set,
+                                         "topic1",
+                                         "tnsaxis",
+                                         "ObjectAnalytics", /*  If key value is = ObjectAnalytics then the declared key_value_set won't be visible in UI / same as AOA . If SendStateWithData then key_value_set will appear in UI*/
+                                         AX_VALUE_TYPE_STRING,
+                                         NULL);
+    
+    //TOPIC LEVEL 2
+    ax_event_key_value_set_add_key_value(  key_value_set, "topic2", "tnsaxis", "SendStateWithDataEvent" , AX_VALUE_TYPE_STRING,NULL);
+    ax_event_key_value_set_add_nice_names( key_value_set, "topic2", "tnsaxis", "SendStateWithDataEvent", "Send State With Data Event", NULL);
+
+    // marked as data
+    //ax_event_key_value_set_mark_as_user_defined( key_value_set, "topic2", "tnsaxis", "isApplicationData", NULL);
+
+    ax_event_key_value_set_add_key_value( key_value_set, "active", NULL, &start_value, AX_VALUE_TYPE_BOOL, NULL);    
+    ax_event_key_value_set_mark_as_data(key_value_set, "active", NULL, NULL);
+
+    // Shouldn't show isPropertyState
+    ax_event_key_value_set_add_key_value(key_value_set, "triggerTime", NULL, "", AX_VALUE_TYPE_STRING, NULL);
+    ax_event_key_value_set_mark_as_data(key_value_set, "triggerTime", NULL, NULL);
+    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "triggerTime", NULL, "isApplicationData", NULL);
+
+    ax_event_key_value_set_add_key_value(key_value_set, "classTypes", NULL, "", AX_VALUE_TYPE_STRING, NULL);
+    ax_event_key_value_set_mark_as_data(key_value_set, "classTypes", NULL, NULL);
+    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "classTypes", NULL, "isApplicationData", NULL);
+
+    ax_event_key_value_set_add_key_value(key_value_set, "scenarioType",NULL, "", AX_VALUE_TYPE_STRING, NULL);
+    ax_event_key_value_set_mark_as_data(key_value_set, "scenarioType", NULL, NULL);
+    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "scenarioType", NULL, "isApplicationData", NULL);
+
+    ax_event_key_value_set_add_key_value(key_value_set, "objectId", NULL, "", AX_VALUE_TYPE_STRING, NULL);
+    ax_event_key_value_set_mark_as_data(key_value_set, "objectId", NULL, NULL);
+    //ax_event_key_value_set_mark_as_user_defined(key_value_set, "objectId", NULL, "isApplicationData", NULL);
+
+    // Declare event
+    if (!ax_event_handler_declare2(event_handler,
+                                  key_value_set,
+                                  FALSE,  // Indicate a property state event
+                                  "active",
+                                  &declaration,
+                                  (AXDeclarationCompleteCallback)declaration_complete,
+                                  start_value,
+                                  &error)) {
+        syslog(LOG_WARNING, "Could not declare: %s", error->message);
+        g_error_free(error);
+    }
+
+    // The key/value set is no longer needed
+    ax_event_key_value_set_free(key_value_set);
+    return declaration;
+}
+
+/**
+ * brief Main function which sends an event.
+ */
+
+gint main(void) {
+    /* TODO 1: Review the README steps for manifest and Makefile changes. */
+    /* TODO 2: Paste the setup snippet into this main function. */
+    /* TODO 3: Paste the runtime/API workflow snippets in order. */
+    /* TODO 4: Paste the cleanup snippet at the end. */
+
+    return 0;
 }
