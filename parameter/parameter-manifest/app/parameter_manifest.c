@@ -1,27 +1,43 @@
 /*
- * Exercise skeleton for parameter_manifest.
+ * Parameter manifest exercise skeleton.
  *
- * Open README.md in this example and paste the implementation snippets into
- * this file. The skeleton intentionally keeps error handling and setup minimal
- * so the exercise focuses on the ACAP API flow.
+ * The signal handler and basic includes are provided. Follow README.md to add
+ * the manifest parameter, Makefile dependency, parameter callback, AXParameter
+ * handle setup, callback registration, main loop, and cleanup.
  */
 
+#include <axsdk/axparameter.h>
+#include <glib-unix.h>
+#include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <syslog.h>
 
-int main(void) {
-    openlog("parameter_manifest", LOG_PID, LOG_USER);
+#define APP_NAME "parameter_manifest"
 
-    syslog(LOG_INFO, "parameter_manifest exercise skeleton started");
+static gboolean signal_handler(gpointer loop) {
+    g_main_loop_quit((GMainLoop*)loop);
+    syslog(LOG_INFO, "Application was stopped by SIGTERM or SIGINT.");
+    return G_SOURCE_REMOVE;
+}
+
+/* TODO 3: Paste the parameter callback from README.md here. */
+
+int main(void) {
+    GError* error = NULL;
+    GMainLoop* loop = NULL;
+
+    openlog(APP_NAME, LOG_PID, LOG_USER);
+    syslog(LOG_INFO, "Starting %s", APP_NAME);
 
     /* TODO 1: Add the ParameterManifest entry to manifest.json. */
     /* TODO 2: Add axparameter to the Makefile PKGS line. */
-    /* TODO 3: Replace the includes and APP_NAME constant from README.md. */
-    /* TODO 4: Paste the signal handler from README.md. */
-    /* TODO 5: Paste the parameter callback from README.md. */
-    /* TODO 6: Replace this main() with the AXParameter setup, callback registration, loop, and cleanup. */
 
-    syslog(LOG_INFO, "TODO: complete parameter_manifest.c using the README implementation snippet");
+    /* TODO 4: Create the AXParameter handle here. */
+
+    /* TODO 5: Register the ParameterManifest callback here. */
+
+    /* TODO 6: Create the GLib main loop, register signals, run, then clean up. */
 
     closelog();
     return EXIT_SUCCESS;
