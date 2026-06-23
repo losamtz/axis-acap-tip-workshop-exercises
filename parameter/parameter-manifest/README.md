@@ -2,19 +2,58 @@
 
 This exercise teaches how an application parameter declared in `manifest.json` becomes available to C code through the AXParameter API.
 
-The app starts with three missing pieces:
+The app starts with four missing pieces:
 
+- `app/manifest.json` grants the app no Linux group access yet.
 - `app/manifest.json` does not yet declare the `ParameterManifest` parameter.
 - `app/Makefile` links GLib, but not `axparameter` yet.
 - `app/parameter_manifest.c` contains the basic includes and signal handler, but the AXParameter flow is incomplete.
 
-Complete the exercise by following the six steps below.
+Complete the exercise by following the seven steps below.
 
-## Step 1: Add the parameter to manifest.json
+## Step 1: Add system parameter access to manifest.json
 
 Open `app/manifest.json`.
 
-Inside `acapPackageConf`, after the `setup` object, add the `configuration` block below. Remember to add a comma after the closing brace of `setup`.
+After `schemaVersion`, add the `resources` block below. Remember to add a comma after the `schemaVersion` line and keep the comma after the closing brace of `resources`.
+
+```json
+"resources": {
+    "linux": {
+        "user": {
+            "groups": [
+                "admin"
+            ]
+        }
+    }
+},
+```
+
+This gives the application user access to the `admin` Linux group, which is required when the app needs to access system parameters.
+
+The top of the manifest should be:
+
+```json
+{
+    "schemaVersion": "2.0.0",
+    "resources": {
+        "linux": {
+            "user": {
+                "groups": [
+                    "admin"
+                ]
+            }
+        }
+    },
+    "acapPackageConf": {
+        "...": "..."
+    }
+}
+```
+
+## Step 2: Add the parameter to manifest.json
+
+Still in `app/manifest.json`, inside `acapPackageConf`, after the `setup` object, add the `configuration` block below. Remember to add a comma after the closing brace of `setup`.
 
 ```json
 ,
@@ -48,7 +87,7 @@ The final structure should be:
 }
 ```
 
-## Step 2: Add AXParameter to the Makefile
+## Step 3: Add AXParameter to the Makefile
 
 Open `app/Makefile`.
 
@@ -66,7 +105,7 @@ PKGS = gio-2.0 gio-unix-2.0 axparameter
 
 `gio-2.0` and `gio-unix-2.0` are already needed for the GLib main loop and Unix signal handling. `axparameter` adds the headers and linker flags for the AXParameter library.
 
-## Step 3: Add the parameter callback
+## Step 4: Add the parameter callback
 
 Open `app/parameter_manifest.c`.
 
@@ -85,7 +124,7 @@ static void acap_parameter_changed(const gchar* name, const gchar* value, gpoint
 
 This callback runs when the `ParameterManifest` parameter changes from the app settings page or VAPIX.
 
-## Step 4: Create the AXParameter handle
+## Step 5: Create the AXParameter handle
 
 In `main()`, paste this where the file says `TODO 4`:
 
@@ -99,7 +138,7 @@ if (!handle) {
 
 `ax_parameter_new()` opens the application's parameter namespace. The `APP_NAME` value must match `acapPackageConf.setup.appName` in `manifest.json`.
 
-## Step 5: Register the callback
+## Step 6: Register the callback
 
 Paste this where the file says `TODO 5`:
 
@@ -107,9 +146,9 @@ Paste this where the file says `TODO 5`:
 ax_parameter_register_callback(handle, "ParameterManifest", acap_parameter_changed, NULL, &error);
 ```
 
-This connects changes to `ParameterManifest` with the callback function you added in Step 3.
+This connects changes to `ParameterManifest` with the callback function you added in Step 4.
 
-## Step 6: Run the main loop and clean up
+## Step 7: Run the main loop and clean up
 
 Paste this where the file says `TODO 6`:
 
@@ -138,10 +177,9 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-1. Install the `.eap` on the camera.
-2. Start the app.
-3. Open the app settings page and change `ParameterManifest`.
-4. Check syslog. You should see a message showing the new parameter value.
+Install the `.eap` on the camera and start the app.
+
+Follow the [test guide](.test/test.md) to change `ParameterManifest` from the app settings page and through VAPIX. The expected result is that syslog shows a message with the new parameter value each time the parameter changes.
 
 You can compare your finished files with the complete example in:
 
