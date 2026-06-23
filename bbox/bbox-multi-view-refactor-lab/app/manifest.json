@@ -1,18 +1,5 @@
 {
     "schemaVersion": "1.7.3",
-    "resources": {
-        "dbus": {
-            "requiredMethods": [
-                "com.axis.Graphics2.*",
-                "com.axis.Overlay2.*"
-            ]
-        },
-        "linux": {
-            "user": {
-                "groups": ["video"]
-            }
-        }
-    },
     "acapPackageConf": {
         "setup": {
             "friendlyName": "BBox Multi View Refactor Lab",

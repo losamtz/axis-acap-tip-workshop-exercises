@@ -99,10 +99,13 @@ static gboolean sig_handler(gpointer data) {
 /* ---------------------- main --------------------- */
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    openlog(NULL, LOG_PID | LOG_CONS, LOG_USER);
 
-    return 0;
+    /* TODO 1: Create the GLib main loop. */
+    /* TODO 2: Register SIGTERM and SIGINT handlers. */
+    /* TODO 3: Create one persistent bbox handle for views 1, 2, 3, and 4. */
+    /* TODO 4: Enable video output, start the animation timer, and run the loop. */
+    /* TODO 5: Clear drawings, destroy resources, and return success. */
+
+    return EXIT_SUCCESS;
 }

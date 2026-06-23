@@ -1,14 +1,10 @@
 # Bbox Multi View Refactor Lab Exercise
 
-This exercise is based on `bbox/bbox-multi-view-refactor-lab` from the complete `axis-acap-tip-workshop` repository.
+This exercise refactors the multi-view bbox animation to reuse one persistent bbox handle and let the GLib timer control the frame cadence.
 
-`app/bbox_multi_view_lab.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
+`app/bbox_multi_view_lab.c` keeps the animation tick, cleanup helper, signal handler, and drawing logic in place so the exercise can focus on application lifecycle and persistent bbox resource management.
 
-## Step 1: Review manifest configuration
-
-This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
-
-## Step 2: Add build dependencies
+## Step 1: Add build dependencies
 
 Open `app/Makefile` and replace the TODO `PKGS` line with:
 
@@ -16,61 +12,100 @@ Open `app/Makefile` and replace the TODO `PKGS` line with:
 PKGS = bbox gio-2.0 glib-2.0
 ```
 
-## Step 3: Add main setup snippet
+## Step 2: Add bbox access to manifest.json
 
-Paste this into `main()` at the next TODO position:
+Open `app/manifest.json`.
 
-```c
-openlog(NULL, LOG_PID | LOG_CONS, LOG_USER);
+After `schemaVersion`, add the `resources` block below. Remember to add a comma after the `schemaVersion` line and keep the comma after the closing brace of `resources`.
 
-    // Create main loop
-    loop = g_main_loop_new(NULL, FALSE);
-    if (!loop) panic("Failed to create GMainLoop");
-
-    // Handle signals
-    g_unix_signal_add(SIGTERM, sig_handler, NULL);
-    g_unix_signal_add(SIGINT, sig_handler, NULL);
-
-    // Create a persistent bbox handle once.
-    // Here we target 4 views (1..4). Adjust to your device layout.
-    g_bbox = bbox_new(4u, 1u, 2u, 3u, 4u);
-    if (!g_bbox) panic("bbox_new failed: %s", strerror(errno));
+```json
+"resources": {
+    "dbus": {
+        "requiredMethods": [
+            "com.axis.Graphics2.*",
+            "com.axis.Overlay2.*"
+        ]
+    },
+    "linux": {
+        "user": {
+            "groups": ["video"]
+        }
+    }
+},
 ```
 
-## Step 4: Add main configuration snippet
+This gives the app access to the graphics and overlay D-Bus APIs and the `video` Linux group required by the bbox API.
 
-Paste this into `main()` at the next TODO position:
+## Step 3: Create the GLib main loop
+
+Open `app/bbox_multi_view_lab.c`.
+
+Paste this where the file says `TODO 1`:
 
 ```c
-// Optional: choose normalized coordinate space (uncomment if needed)
-    // bbox_coordinates_frame_normalized(g_bbox);
-    // or bbox_coordinates_scene_normalized(g_bbox);
-
-    // Prime the OSD
-    if (!bbox_video_output(g_bbox, true))
-        panic("Failed enabling video-output: %s", strerror(errno));
-
-    // Start animation timer (no blocking sleeps inside update loop)
-    g_timeout_add(TICK_MS, update_bbox, NULL);
-
-    // Run
-    g_main_loop_run(loop);
-
-    // Shutdown: clear what we drew and destroy resources
-    clear_all();
-
-    if (g_bbox) {
-        bbox_destroy(g_bbox);
-        g_bbox = NULL;
-    }
-
-    if (loop) {
-        g_main_loop_unref(loop);
-        loop = NULL;
-    }
-
-    return EXIT_SUCCESS;
+loop = g_main_loop_new(NULL, FALSE);
+if (!loop)
+    panic("Failed to create GMainLoop");
 ```
+
+This creates the main loop that keeps the animation timer running.
+
+## Step 4: Register signal handlers
+
+Paste this where the file says `TODO 2`:
+
+```c
+g_unix_signal_add(SIGTERM, sig_handler, NULL);
+g_unix_signal_add(SIGINT, sig_handler, NULL);
+```
+
+This lets the app stop cleanly when it receives `SIGTERM` or `SIGINT`.
+
+## Step 5: Create the persistent bbox handle
+
+Paste this where the file says `TODO 3`:
+
+```c
+g_bbox = bbox_new(4u, 1u, 2u, 3u, 4u);
+if (!g_bbox)
+    panic("bbox_new failed: %s", strerror(errno));
+```
+
+This creates one bbox handle for views 1, 2, 3, and 4. The app reuses this handle on every animation tick.
+
+## Step 6: Start the animation
+
+Paste this where the file says `TODO 4`:
+
+```c
+if (!bbox_video_output(g_bbox, true))
+    panic("Failed enabling video-output: %s", strerror(errno));
+
+g_timeout_add(TICK_MS, update_bbox, NULL);
+g_main_loop_run(loop);
+```
+
+This enables overlay output, starts the timer-driven animation, and runs the main loop.
+
+## Step 7: Clean up
+
+Paste this where the file says `TODO 5`:
+
+```c
+clear_all();
+
+if (g_bbox) {
+    bbox_destroy(g_bbox);
+    g_bbox = NULL;
+}
+
+if (loop) {
+    g_main_loop_unref(loop);
+    loop = NULL;
+}
+```
+
+This clears the overlay and releases the persistent bbox and GLib resources.
 
 ## Build
 
@@ -85,7 +120,7 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
+Install the application, start it, and follow the [test guide](.test/test.md).
 
 ## Reference
 

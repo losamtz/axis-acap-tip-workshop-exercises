@@ -1,14 +1,10 @@
 # Bbox View Exercise
 
-This exercise is based on `bbox/bbox-view` from the complete `axis-acap-tip-workshop` repository.
+This exercise draws a static red bounding box on video channel 1 using the bbox API.
 
-`app/bbox_view.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
+`app/bbox_view.c` keeps the GLib main loop, signal handling, cleanup, and error handling in place so the exercise can focus on the bbox drawing workflow.
 
-## Step 1: Review manifest configuration
-
-This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
-
-## Step 2: Add build dependencies
+## Step 1: Add build dependencies
 
 Open `app/Makefile` and replace the TODO `PKGS` line with:
 
@@ -16,29 +12,80 @@ Open `app/Makefile` and replace the TODO `PKGS` line with:
 PKGS = bbox gio-2.0 glib-2.0
 ```
 
-## Step 3: Add main setup snippet
+## Step 2: Add bbox access to manifest.json
 
-Paste this into `main()` at the next TODO position:
+Open `app/manifest.json`.
+
+After `schemaVersion`, add the `resources` block below. Remember to add a comma after the `schemaVersion` line and keep the comma after the closing brace of `resources`.
+
+```json
+"resources": {
+    "dbus": {
+        "requiredMethods": [
+            "com.axis.Graphics2.*",
+            "com.axis.Overlay2.*"
+        ]
+    },
+    "linux": {
+        "user": {
+            "groups": ["video"]
+        }
+    }
+},
+```
+
+This gives the app access to the graphics and overlay D-Bus APIs and the `video` Linux group required by the bbox API.
+
+## Step 3: Create the bbox view
+
+Open `app/bbox_view.c`.
+
+Paste this where the file says `TODO 1`:
 
 ```c
-GMainLoop *loop = NULL;
-
-    openlog(NULL, LOG_PID, LOG_USER);
-
-    // create glib loop
-    loop = g_main_loop_new(NULL, FALSE);
-    g_unix_signal_add(SIGTERM, signal_handler, loop);
-    g_unix_signal_add(SIGINT, signal_handler, loop);
-
-    single_channel();
-
-    // Enter main loop
-    g_main_loop_run(loop);
-
-    clear();
-
-    return EXIT_SUCCESS;
+bbox_t* bbox = bbox_view_new(1u);
+if (!bbox)
+    panic("Failed creating: %s", strerror(errno));
 ```
+
+This creates a bbox drawing context for video channel 1.
+
+## Step 4: Clear old boxes
+
+Paste this where the file says `TODO 2`:
+
+```c
+bbox_clear(bbox);
+```
+
+This removes previously drawn bounding boxes from the view.
+
+## Step 5: Configure the box style
+
+Paste this where the file says `TODO 3`:
+
+```c
+const bbox_color_t red = bbox_color_from_rgb(0xff, 0x00, 0x00);
+
+bbox_style_outline(bbox);
+bbox_thickness_thin(bbox);
+bbox_color(bbox, red);
+```
+
+This configures a thin red outline for the bounding box.
+
+## Step 6: Draw and commit the rectangle
+
+Paste this where the file says `TODO 4`:
+
+```c
+bbox_rectangle(bbox, 0.05, 0.05, 0.95, 0.95);
+
+if (!bbox_commit(bbox, 0u))
+    panic("Failed committing: %s", strerror(errno));
+```
+
+This queues a rectangle and commits the queued geometry to the overlay.
 
 ## Build
 
@@ -53,7 +100,7 @@ The generated `.eap` package will be copied into `./build`.
 
 ## Verify
 
-Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
+Install the application, start it, and follow the [test guide](.test/test.md).
 
 ## Reference
 
