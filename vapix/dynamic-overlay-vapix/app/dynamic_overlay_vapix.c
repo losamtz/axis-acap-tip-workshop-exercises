@@ -1,32 +1,14 @@
 #include <curl/curl.h>
 #include <gio/gio.h>
 #include <jansson.h>
+#include <stdlib.h>
 #include <syslog.h>
 #include "panic.h"
 #include "vapix-credentials.h"
 #include "curl-request.h"
 
 
-static json_t* build_addtext_request(void) {
-    json_t* root = json_object();
-    json_t* params = json_object();
-
-    // Fill the "params" object
-    json_object_set_new(params, "camera", json_integer(1));
-    json_object_set_new(params, "text", json_string("AXIS TIP Paris workshop - Date: %c"));
-    json_object_set_new(params, "position", json_string("topLeft"));
-    json_object_set_new(params, "textColor", json_string("white"));
-    json_object_set_new(params, "fontSize", json_integer(60));
-    json_object_set_new(params, "textBGColor", json_string("black"));
-
-    // Fill the root object
-    json_object_set_new(root, "apiVersion", json_string("1.0"));
-    json_object_set_new(root, "context", json_string("abc"));
-    json_object_set_new(root, "method", json_string("addText"));
-    json_object_set_new(root, "params", params);
-
-    return root;
-}
+/* TODO 4: Add the dynamic overlay addText JSON request builder. */
 
 static json_t*
 vapix_post_json(CURL* handle, const char* credentials, const char* endpoint, const char* request) {
@@ -45,15 +27,7 @@ vapix_post_json(CURL* handle, const char* credentials, const char* endpoint, con
     return json_response;
 }
 
-static json_t* add_text(CURL* handle, const char* credentials) {
-    const char* endpoint = "/axis-cgi/dynamicoverlay/dynamicoverlay.cgi";
-
-    
-    json_t* request_obj = build_addtext_request();
-    char* request = json_dumps(request_obj, JSON_COMPACT);
-
-    return vapix_post_json(handle, credentials, endpoint, request);
-}
+/* TODO 5: Add the dynamic overlay addText request helper. */
 
 static const char* response_data(const json_t* props, const char* prop_name) {
 
@@ -80,10 +54,28 @@ static const char* response_data(const json_t* props, const char* prop_name) {
 }
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    openlog(NULL, LOG_PID, LOG_USER);
+
+    syslog(LOG_INFO, "Curl version %s", curl_version_info(CURLVERSION_NOW)->version);
+    syslog(LOG_INFO, "Jansson version %s", JANSSON_VERSION);
+
+    /* TODO 1: Initialize libcurl and create the curl handle. */
+
+    char* credentials = retrieve_vapix_credentials("example-vapix-user");
+
+    json_t* response = add_text(handle, credentials);
+
+    char* debug_str = json_dumps(response, JSON_INDENT(2));
+    syslog(LOG_INFO, "Full json response:\n%s", debug_str);
+
+    syslog(LOG_INFO, "Camera: %s", response_data(response, "camera"));
+    syslog(LOG_INFO, "Identity: %s", response_data(response, "identity"));
+
+    free(debug_str);
+    json_decref(response);
+    free(credentials);
+    curl_easy_cleanup(handle);
+    curl_global_cleanup();
 
     return 0;
 }

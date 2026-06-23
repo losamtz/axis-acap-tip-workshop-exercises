@@ -1,10 +1,5 @@
 {
     "schemaVersion": "2.0.0",
-    "resources": {
-        "dbus": {
-            "requiredMethods": ["com.axis.HTTPConf1.VAPIXServiceAccounts1.GetCredentials"]
-        }
-    },
     "acapPackageConf": {
         "setup": {
             "friendlyName": "Dynamic Overlay Vapix",
