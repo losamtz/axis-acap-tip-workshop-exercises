@@ -285,10 +285,13 @@ static gboolean signal_handler(gpointer loop) {
  */
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    /* TODO 1: Create the GLib main loop, register signals, and check the Cairo backend. */
+    /* TODO 2: Initialize axoverlay with the render and adjustment callbacks. */
+    /* TODO 3: Configure the palette colors for the rectangle, circle, and triangle. */
+    /* TODO 4: Read the camera max resolution for the overlay size. */
+    /* TODO 5: Create a full-frame palette overlay for all views. */
+    /* TODO 6: Request a redraw and run the main loop. */
+    /* TODO 7: Destroy the overlay, clean up axoverlay, and release the main loop. */
 
     return 0;
 }

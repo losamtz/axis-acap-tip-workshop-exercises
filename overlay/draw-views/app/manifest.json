@@ -1,13 +1,5 @@
 {
     "schemaVersion": "1.7.3",
-    "resources": {
-        "dbus": {
-            "requiredMethods": [
-                "com.axis.Graphics2.*",
-                "com.axis.Overlay2.*"
-            ]
-        }
-    },
     "acapPackageConf": {
         "setup": {
             "friendlyName": "Draw Views",
