@@ -34,31 +34,38 @@ After `schemaVersion`, add the `resources` block below. Remember to add a comma 
 
 This gives the application user access to the `admin` Linux group, which is required when the app updates device system parameters.
 
-## Step 2: Add manifest configuration
+## Step 2: Add the settings page to manifest.json
 
-Open `app/manifest.json` and add this `configuration` object inside `acapPackageConf`, after the `setup` object:
+Open `app/manifest.json` and add this field inside the empty `configuration` object:
 
 ```json
-"configuration": {
-  "settingPage": "index.html",
-  "paramConfig": [
-    {
-      "name": "MulticastAddress",
-      "default": "224.0.0.1",
-      "type": "string:maxlen=64"
-    },
-    {
-      "name": "MulticastPort",
-      "default": "1024",
-      "type": "int:maxlen=5;min=1024;max=65535"
-    }
-  ]
-}
+"settingPage": "index.html"
 ```
 
-Keep the JSON comma between `setup` and `configuration` valid.
+Remember to add a comma after this line before adding more fields to `configuration`.
 
-## Step 3: Add AXParameter to the Makefile
+## Step 3: Add the parameter configuration to manifest.json
+
+Open `app/manifest.json` and add this field inside the `configuration` object, after `settingPage`:
+
+```json
+"paramConfig": [
+    {
+        "name": "MulticastAddress",
+        "default": "224.0.0.1",
+        "type": "string:maxlen=64"
+    },
+    {
+        "name": "MulticastPort",
+        "default": "1024",
+        "type": "int:maxlen=5;min=1024;max=65535"
+    }
+]
+```
+
+Keep the JSON comma between `settingPage` and `paramConfig` valid.
+
+## Step 4: Add AXParameter to the Makefile
 
 Open `app/Makefile` and add `axparameter` to `PKGS`:
 
@@ -66,7 +73,7 @@ Open `app/Makefile` and add `axparameter` to `PKGS`:
 PKGS = glib-2.0 gio-2.0 axparameter
 ```
 
-## Step 4: Create the AXParameter handle
+## Step 5: Create the AXParameter handle
 
 Paste this at `TODO 3` in `main()`:
 
@@ -77,7 +84,7 @@ if (!axparameter) {
 }
 ```
 
-## Step 5: Register callbacks
+## Step 6: Register callbacks
 
 Paste this at `TODO 4`:
 
@@ -99,7 +106,7 @@ if (!ax_parameter_register_callback(axparameter,
 }
 ```
 
-## Step 6: Run the GLib loop and clean up
+## Step 7: Run the GLib loop and clean up
 
 Paste this at `TODO 5`:
 
@@ -113,7 +120,7 @@ g_main_loop_unref(main_loop);
 ax_parameter_free(axparameter);
 ```
 
-## Step 7: Fetch the app parameters from the settings page
+## Step 8: Fetch the app parameters from the settings page
 
 Open `app/html/js/onload.js`.
 
@@ -125,7 +132,7 @@ const response = await fetch('/axis-cgi/param.cgi?action=list&group=parameter_cu
 
 This uses `param.cgi` to read the app parameters when the custom settings page opens, so the form fields can show the current multicast address and port.
 
-## Step 8: Submit parameter updates from the settings page
+## Step 9: Submit parameter updates from the settings page
 
 Open `app/html/js/submitForm.js`.
 
