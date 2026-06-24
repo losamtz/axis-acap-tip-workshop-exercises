@@ -32,12 +32,13 @@ static int handle_vdo_failed(GError* error) {
 
 int main(int argc, char** argv) {
     (void)argc;
-    (void)argv;
 
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    /* TODO 1: Initialize logging and local VDO variables. */
+    /* TODO 2: Create the RGB stream with the VDO convenience constructor. */
+    /* TODO 3: Get the stream fd, start the stream, and log RGB stream info. */
+    /* TODO 4: Poll the stream fd before fetching each RGB buffer. */
+    /* TODO 5: Read frame metadata and return each buffer to VDO. */
+    /* TODO 6: Release VDO objects and exit. */
 
     return 0;
 }

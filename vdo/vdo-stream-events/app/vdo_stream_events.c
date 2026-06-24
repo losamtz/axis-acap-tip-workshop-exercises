@@ -7,6 +7,7 @@
 #include <gio/gio.h>
 #include <glib-unix.h>
 #include <glib.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <syslog.h>
@@ -120,10 +121,11 @@ static gboolean stream_event_callback(GIOChannel* channel,
 }
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    /* TODO 1: Initialize logging, errors, GLib main loop, and signal handlers. */
+    /* TODO 2: Open VDO stream 0 and attach an overlay stream-event filter. */
+    /* TODO 3: Get the VDO event fd and add it to the GLib main loop. */
+    /* TODO 4: Run the main loop so stream_event_callback() handles events. */
+    /* TODO 5: Remove the watch, release VDO/GLib objects, and close logging. */
 
     return 0;
 }

@@ -1,14 +1,8 @@
-# Vdo Stream Events Exercise
+# VDO Stream Events Exercise
 
-This exercise is based on `vdo/vdo-stream-events` from the complete `axis-acap-tip-workshop` repository.
+This exercise listens for VDO stream events and logs metadata for overlay-capable streams. The helper functions and callback are already in `app/vdo_stream_events.c`; complete `main()` one TODO at a time.
 
-`app/vdo_stream_events.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
-
-## Step 1: Review manifest configuration
-
-This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
-
-## Step 2: Add build dependencies
+## Step 1: Add build dependencies
 
 Open `app/Makefile` and replace the TODO `PKGS` line with:
 
@@ -16,69 +10,109 @@ Open `app/Makefile` and replace the TODO `PKGS` line with:
 PKGS = gio-2.0 gio-unix-2.0 glib-2.0 vdostream
 ```
 
-## Step 3: Add main setup snippet
+## Step 2: Add manifest resources
 
-Paste this into `main()` at the next TODO position:
+After `schemaVersion`, add the `resources` block below. Remember to add a comma after the `schemaVersion` line and keep the comma after the closing brace of `resources`.
+
+```json
+"resources": {
+    "linux": {
+        "user": {
+            "groups": ["video"]
+        }
+    }
+},
+```
+
+## Step 3: Initialize the app
+
+Paste this where the file says `TODO 1`:
 
 ```c
 GError* error = NULL;
-    VdoMap* stream_filter = NULL;
-    GIOChannel* channel = NULL;
-    guint watch_id = 0;
+VdoMap* stream_filter = NULL;
+GIOChannel* channel = NULL;
+guint watch_id = 0;
 
-    openlog("vdo_stream_events", LOG_PID, LOG_USER);
-    syslog(LOG_INFO, "Starting VDO stream events example");
+openlog("vdo_stream_events", LOG_PID, LOG_USER);
+syslog(LOG_INFO, "Starting VDO stream events example");
 
-    main_loop = g_main_loop_new(NULL, FALSE);
-    g_unix_signal_add(SIGINT, signal_handler, NULL);
-    g_unix_signal_add(SIGTERM, signal_handler, NULL);
-
-    event_stream = vdo_stream_get(0, &error);
-    if (!event_stream)
-        panic("Failed to open VDO stream 0: %s", error->message);
-
-    stream_filter = vdo_map_new();
-    vdo_map_set_string(stream_filter, "filter", "overlay");
-
-    if (!vdo_stream_attach(event_stream, stream_filter, &error))
-        panic("Failed to attach overlay stream filter: %s", error->message);
-
-    int event_fd = vdo_stream_get_event_fd(event_stream, &error);
-    if (event_fd < 0)
-        panic("Failed to get VDO event fd: %s", error->message);
-
-    channel = g_io_channel_unix_new(event_fd);
-    watch_id = g_io_add_watch(channel,
-                              G_IO_IN | G_IO_PRI | G_IO_ERR | G_IO_HUP,
-                              stream_event_callback,
-                              NULL);
-    if (!watch_id)
-        panic("Failed to add VDO event fd to GLib main loop");
-
-    syslog(LOG_INFO, "Waiting for overlay-capable stream events");
-    g_main_loop_run(main_loop);
+main_loop = g_main_loop_new(NULL, FALSE);
+g_unix_signal_add(SIGINT, signal_handler, NULL);
+g_unix_signal_add(SIGTERM, signal_handler, NULL);
 ```
 
-## Step 4: Add main configuration snippet
+This prepares shared state for the stream-event callback and makes `SIGINT`/`SIGTERM` stop the GLib main loop cleanly.
 
-Paste this into `main()` at the next TODO position:
+## Step 4: Attach the stream-event filter
+
+Paste this where the file says `TODO 2`:
+
+```c
+event_stream = vdo_stream_get(0, &error);
+if (!event_stream)
+    panic("Failed to open VDO stream 0: %s", error->message);
+
+stream_filter = vdo_map_new();
+vdo_map_set_string(stream_filter, "filter", "overlay");
+
+if (!vdo_stream_attach(event_stream, stream_filter, &error))
+    panic("Failed to attach overlay stream filter: %s", error->message);
+```
+
+The stream filter asks VDO to report streams that can be used for overlay-related work. The callback later receives `EXISTING`, `CREATED`, and `CLOSED` events.
+
+## Step 5: Watch the event fd
+
+Paste this where the file says `TODO 3`:
+
+```c
+int event_fd = vdo_stream_get_event_fd(event_stream, &error);
+if (event_fd < 0)
+    panic("Failed to get VDO event fd: %s", error->message);
+
+channel = g_io_channel_unix_new(event_fd);
+watch_id = g_io_add_watch(channel,
+                          G_IO_IN | G_IO_PRI | G_IO_ERR | G_IO_HUP,
+                          stream_event_callback,
+                          NULL);
+if (!watch_id)
+    panic("Failed to add VDO event fd to GLib main loop");
+```
+
+`stream_event_callback()` calls `vdo_stream_get_event()`, logs the event type and stream id, and calls `log_stream_info()` for existing and newly created streams.
+
+## Step 6: Run the main loop
+
+Paste this where the file says `TODO 4`:
+
+```c
+syslog(LOG_INFO, "Waiting for overlay-capable stream events");
+g_main_loop_run(main_loop);
+```
+
+The app stays here until a signal handler or event error asks the main loop to quit.
+
+## Step 7: Clean up
+
+Paste this where the file says `TODO 5`:
 
 ```c
 if (watch_id)
-        g_source_remove(watch_id);
-    if (channel)
-        g_io_channel_unref(channel);
-    if (stream_filter)
-        g_object_unref(stream_filter);
-    if (event_stream)
-        g_object_unref(event_stream);
-    if (main_loop)
-        g_main_loop_unref(main_loop);
-    g_clear_error(&error);
+    g_source_remove(watch_id);
+if (channel)
+    g_io_channel_unref(channel);
+if (stream_filter)
+    g_object_unref(stream_filter);
+if (event_stream)
+    g_object_unref(event_stream);
+if (main_loop)
+    g_main_loop_unref(main_loop);
+g_clear_error(&error);
 
-    syslog(LOG_INFO, "Stopped VDO stream events example");
-    closelog();
-    return EXIT_SUCCESS;
+syslog(LOG_INFO, "Stopped VDO stream events example");
+closelog();
+return EXIT_SUCCESS;
 ```
 
 ## Build
@@ -92,9 +126,9 @@ docker cp $(docker create vdo-stream-events):/opt/app ./build
 
 The generated `.eap` package will be copied into `./build`.
 
-## Verify
+## Test
 
-Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
+Install the application, start it, and follow the [test guide](.test/test.md).
 
 ## Reference
 

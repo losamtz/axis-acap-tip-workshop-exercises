@@ -1,14 +1,16 @@
-# Vdo Dma Bufs Exercise
+# Vdo DMA-BUFs Exercise
 
-This exercise is based on `vdo/vdo-dma-bufs` from the complete `axis-acap-tip-workshop` repository.
+This exercise shows how VDO can expose frame memory through file descriptors. It does not use larod. It only inspects VDO buffers, maps the fd with `mmap()`, logs a small byte sample, and returns the buffer to VDO.
 
-`app/vdo_dma_bufs.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
+`app/vdo_dma_bufs.c` keeps the stream creation helper, stream-info logger, and DMA-BUF inspection helper in place. Complete the TODOs in `main()` with the snippets below.
 
-## Step 1: Review manifest configuration
+The important DMA-BUF flow is:
 
-This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
+```text
+poll stream fd -> get VdoBuffer -> read fd/offset/capacity -> mmap -> inspect bytes -> munmap -> return VdoBuffer
+```
 
-## Step 2: Add build dependencies
+## Step 1: Add build dependencies
 
 Open `app/Makefile` and replace the TODO `PKGS` line with:
 
@@ -16,93 +18,147 @@ Open `app/Makefile` and replace the TODO `PKGS` line with:
 PKGS = gio-2.0 gio-unix-2.0 vdostream
 ```
 
-## Step 3: Add main setup snippet
+## Step 2: Add video access to manifest.json
 
-Paste this into `main()` at the next TODO position:
+Open `app/manifest.json`.
 
-```c
-g_autoptr(GError) vdo_error = NULL;
-    g_autoptr(VdoStream) vdo_stream = NULL;
-    // Stop main loop at signal
-    signal(SIGTERM, shutdown);
-    signal(SIGINT, shutdown);
+After `schemaVersion`, add the `resources` block below. Remember to add a comma after the `schemaVersion` line and keep the comma after the closing brace of `resources`.
 
-    openlog(APP_NAME, LOG_PID | LOG_CONS, LOG_USER);
-    // Set to a framerate that is sufficient for inference
-    double vdo_stream_framerate = 30.0;
-    // The vdo channel to be used
-    unsigned int vdo_channel = 1;
-
-    vdo_stream = create_new_vdo_stream(vdo_channel,
-                                       vdo_stream_framerate);
-    if (!vdo_stream) {
-        return handle_vdo_failed(vdo_error);
+```json
+"resources": {
+    "linux": {
+        "user": {
+            "groups": ["video"]
+        }
     }
-    int fd = vdo_stream_get_fd(vdo_stream, &vdo_error);
-    if (fd < 0) {
-        return handle_vdo_failed(vdo_error);
-    }
-    log_stream_info(vdo_stream);
-
-    struct pollfd fds = {
-        .fd     = fd,
-        .events = POLL_IN,
-    };
-
-    if (!vdo_stream_start(vdo_stream, &vdo_error)) {
-        return handle_vdo_failed(vdo_error);
-    }
-    syslog(LOG_INFO, "Start fetching video frames from VDO");
-    printf("Stream started\n");
+},
 ```
 
-## Step 4: Add main configuration snippet
+## Step 3: Initialize logging, signals, and settings
 
-Paste this into `main()` at the next TODO position:
+Open `app/vdo_dma_bufs.c`.
+
+Paste this where the file says `TODO 1`:
 
 ```c
-    while (running) {
-        int status = 0;
-        do {
-            // If poll returns -1 then errno is set
-            // if the errno is set to EINTR then just
-            // continue this loop
-            status = poll(&fds, 1, -1);
-        } while (status == -1 && errno == EINTR);
+GError* vdo_error = NULL;
+VdoStream* vdo_stream = NULL;
 
-        if (status < 0) {
-            panic("Failed to poll with status %d", status);
-        }
+signal(SIGTERM, shutdown);
+signal(SIGINT, shutdown);
 
-        VdoBuffer* vdo_buf = vdo_stream_get_buffer(vdo_stream, &vdo_error);
-        if (!vdo_buf && g_error_matches(vdo_error, VDO_ERROR, VDO_ERROR_NO_DATA)) {
-            g_clear_error(&vdo_error);
-            continue;
-        }
-        if (!vdo_buf) {
-            return handle_vdo_failed(vdo_error);
-        }
+openlog(APP_NAME, LOG_PID | LOG_CONS, LOG_USER);
 
-        if (vdo_buf) {
+double vdo_stream_framerate = 30.0;
+unsigned int vdo_channel = 1;
+```
 
-            inspect_dma_buffer(vdo_buf);
-            /*
-             * Return the buffer to VDO. Do not read the mapped pointer or
-             * VdoBuffer after this point; VDO may reuse the buffer for a new
-             * frame immediately.
-             */
-            if (!vdo_stream_buffer_unref(vdo_stream, &vdo_buf, &vdo_error)) {
-                return handle_vdo_failed(vdo_error);
-            }
-        }
+The signal handlers let the app stop cleanly while running the poll loop.
+
+## Step 4: Create the VDO stream and get its fd
+
+Paste this where the file says `TODO 2`:
+
+```c
+vdo_stream = create_new_vdo_stream(vdo_channel, vdo_stream_framerate);
+if (!vdo_stream) {
+    return handle_vdo_failed(vdo_error);
+}
+
+int fd = vdo_stream_get_fd(vdo_stream, &vdo_error);
+if (fd < 0) {
+    return handle_vdo_failed(vdo_error);
+}
+
+struct pollfd fds = {
+    .fd = fd,
+    .events = POLL_IN,
+};
+```
+
+The helper creates a non-blocking YUV stream at the requested resolution and buffer count.
+
+## Step 5: Start the stream and log metadata
+
+Paste this where the file says `TODO 3`:
+
+```c
+log_stream_info(vdo_stream);
+
+if (!vdo_stream_start(vdo_stream, &vdo_error)) {
+    return handle_vdo_failed(vdo_error);
+}
+
+syslog(LOG_INFO, "Start fetching video frames from VDO");
+```
+
+`log_stream_info()` records width, height, pitch, format, buffer type, and buffer count.
+
+## Step 6: Poll and fetch buffers
+
+Paste this where the file says `TODO 4`:
+
+```c
+while (running) {
+    int status = 0;
+    do {
+        status = poll(&fds, 1, -1);
+    } while (status == -1 && errno == EINTR);
+
+    if (status < 0) {
+        panic("Failed to poll with status %d", status);
     }
 
-    printf("Stopping...\n");
+    VdoBuffer* vdo_buf = vdo_stream_get_buffer(vdo_stream, &vdo_error);
+    if (!vdo_buf && g_error_matches(vdo_error, VDO_ERROR, VDO_ERROR_NO_DATA)) {
+        g_clear_error(&vdo_error);
+        continue;
+    }
+    if (!vdo_buf) {
+        return handle_vdo_failed(vdo_error);
+    }
+```
 
+The stream is non-blocking, so the app waits on the stream fd before calling `vdo_stream_get_buffer()`.
+
+## Step 7: Inspect the DMA-BUF
+
+Paste this where the file says `TODO 5`:
+
+```c
+    inspect_dma_buffer(vdo_buf);
+```
+
+The helper logs:
+
+- `fd`
+- image `offset`
+- mappable `capacity`
+- `frame_size`
+- the first 32 bytes at the image offset
+
+It maps the fd read-only with `mmap()` and unmaps it before returning.
+
+## Step 8: Return buffers and clean up
+
+Paste this where the file says `TODO 6`:
+
+```c
+    if (!vdo_stream_buffer_unref(vdo_stream, &vdo_buf, &vdo_error)) {
+        return handle_vdo_failed(vdo_error);
+    }
+}
+
+syslog(LOG_INFO, "Stopping VDO DMA-BUF example");
+
+if (vdo_stream) {
     g_object_unref(vdo_stream);
-
-    return EXIT_SUCCESS;
+}
+closelog();
+return EXIT_SUCCESS;
 ```
+
+Do not use `vdo_buf`, the mapped pointer, or frame metadata after `vdo_stream_buffer_unref()`. VDO may immediately reuse the buffer.
 
 ## Build
 
@@ -113,11 +169,9 @@ docker build --tag vdo-dma-bufs --build-arg ARCH=aarch64 .
 docker cp $(docker create vdo-dma-bufs):/opt/app ./build
 ```
 
-The generated `.eap` package will be copied into `./build`.
-
 ## Verify
 
-Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
+Install the application, start it, and follow the [test guide](.test/test.md).
 
 ## Reference
 

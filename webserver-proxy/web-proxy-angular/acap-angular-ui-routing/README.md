@@ -24,6 +24,21 @@ Keep backend API paths stable even when frontend routes change.
 
 ## Local Frontend Commands
 
+Before building, confirm `angular.json` uses the routed settings-page base href:
+
+```json
+"options": {
+    "baseHref": "./index.html",
+    "polyfills": ["zone.js"]
+}
+```
+
+The source `src/index.html` must match:
+
+```html
+<base href="./index.html">
+```
+
 ```sh
 npm install
 npm run build

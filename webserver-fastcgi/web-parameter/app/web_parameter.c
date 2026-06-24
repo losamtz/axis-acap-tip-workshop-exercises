@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <sys/stat.h>
 
 
 #define APP_NAME "web_parameter"     // Must match your package/app name
@@ -181,26 +182,19 @@ static void route_request(FCGX_Request* req, AXParameter* h) {
 
     syslog(LOG_INFO, "FCGI %s %s", method, script);
 
-    if (strcmp(script, "/local/web_parameter/info-acap.cgi") == 0 && strcmp(method, "GET") == 0) {
-        handle_info(req, h);
-        return;
-    }
-    if (strcmp(script, "/local/web_parameter/param-acap.cgi") == 0 && strcmp(method, "POST") == 0) {
-        handle_param(req, h);
-        return;
-    }
-
-    write_json_header(req, 404);
-    FCGX_FPrintF(req->out, "{\"ok\":false,\"error\":\"Not found\"}");
+    /* TODO 1: Dispatch GET info requests to handle_info(). */
+    /* TODO 2: Dispatch POST parameter update requests to handle_param(). */
+    /* TODO 3: Return a JSON 404 response for unknown routes. */
 }
 
 // ─── main ────────────────────────────────────────────────────────────────────
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    /* TODO 4: Initialize logging and read the FastCGI socket path. */
+    /* TODO 5: Initialize FastCGI and AXParameter. */
+    /* TODO 6: Open the FastCGI socket and initialize the request object. */
+    /* TODO 7: Accept requests, route them to handlers, and finish each request. */
+    /* TODO 8: Clean up AXParameter and logging. */
 
     return 0;
 }

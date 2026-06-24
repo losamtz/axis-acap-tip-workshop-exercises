@@ -31,6 +31,21 @@ Using relative paths lets the same UI work on the camera without hard-coding an 
 
 ## Local Frontend Commands
 
+Before building, confirm `angular.json` uses a relative base href for the non-routed settings page:
+
+```json
+"options": {
+    "baseHref": "./",
+    "polyfills": ["zone.js"]
+}
+```
+
+The source `src/index.html` must match:
+
+```html
+<base href="./">
+```
+
 ```sh
 npm install
 npm run build

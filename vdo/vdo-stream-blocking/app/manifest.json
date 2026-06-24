@@ -1,12 +1,5 @@
 {
     "schemaVersion": "2.0.0",
-    "resources": {
-        "linux": {
-            "user": {
-                "groups": ["video"]
-            }
-        }
-    },
     "acapPackageConf": {
         "setup": {
             "friendlyName": "VDO stream blocking",

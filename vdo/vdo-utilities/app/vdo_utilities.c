@@ -27,10 +27,10 @@ static int handle_vdo_failed(GError* error) {
 }
 
 int main(void) {
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    /* TODO 1: Initialize logging and local VDO variables. */
+    /* TODO 2: Log available channels, filtered input channels, and supported resolutions. */
+    /* TODO 3: Create an RGB stream only to inspect stream metadata. */
+    /* TODO 4: Log stream rotation and clean up the stream. */
 
     return 0;
 }

@@ -4,8 +4,8 @@
 
 #include "vdo-frame.h"
 #include "vdo-types.h"
-#include <bbox.h>
 
+#include <errno.h>
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>
@@ -16,7 +16,7 @@
 #include <syslog.h>
 #include <poll.h>
 
-#define APP_NAME "vdo_dma_buffers"
+#define APP_NAME "vdo_dma_bufs"
 
 #define MODEL_INPUT_W 640
 #define MODEL_INPUT_H 640
@@ -166,10 +166,12 @@ int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
 
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    /* TODO 1: Initialize logging, signal handlers, and stream settings. */
+    /* TODO 2: Create the non-blocking YUV VDO stream and get its fd. */
+    /* TODO 3: Start the stream and log stream metadata including buffer type. */
+    /* TODO 4: Poll for VDO buffers while the app is running. */
+    /* TODO 5: Inspect fd, offset, capacity, frame size, and mapped bytes. */
+    /* TODO 6: Return each buffer to VDO and clean up on shutdown. */
 
     return 0;
 }

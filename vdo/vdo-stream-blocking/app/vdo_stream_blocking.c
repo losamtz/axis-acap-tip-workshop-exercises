@@ -32,12 +32,13 @@ static int handle_vdo_failed(GError* error) {
 
 int main(int argc, char** argv) {
     (void)argc;
-    (void)argv;
 
-    /* TODO 1: Review the README steps for manifest and Makefile changes. */
-    /* TODO 2: Paste the setup snippet into this main function. */
-    /* TODO 3: Paste the runtime/API workflow snippets in order. */
-    /* TODO 4: Paste the cleanup snippet at the end. */
+    /* TODO 1: Initialize logging and local VDO variables. */
+    /* TODO 2: Create the H.264 blocking stream. */
+    /* TODO 3: Start the stream and log the stream info returned by VDO. */
+    /* TODO 4: Fetch 10 buffers with the blocking get-buffer call. */
+    /* TODO 5: Read frame metadata and return each buffer to VDO. */
+    /* TODO 6: Release VDO objects and exit. */
 
     return 0;
 }

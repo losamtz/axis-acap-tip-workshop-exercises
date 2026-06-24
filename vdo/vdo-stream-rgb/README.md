@@ -1,14 +1,10 @@
-# Vdo Stream Rgb Exercise
+# Vdo Stream RGB Exercise
 
-This exercise is based on `vdo/vdo-stream-rgb` from the complete `axis-acap-tip-workshop` repository.
+This exercise requests raw RGB frames from VDO using the convenience constructor `vdo_stream_rgb_new()`.
 
-`app/vdo_stream_rgb.c` keeps the original headers, helper functions, callbacks, signal handling, and other support code. Complete only the TODOs in `main()` by pasting the snippets below in order.
+It keeps the non-blocking `poll()` pattern from `vdo-stream-non-block`, but changes the stream format from encoded H.264 to raw RGB pixels.
 
-## Step 1: Review manifest configuration
-
-This example uses manifest entries for `resources`. Review `app/manifest.json` before building and keep these entries aligned with the README workflow.
-
-## Step 2: Add build dependencies
+## Step 1: Add build dependencies
 
 Open `app/Makefile` and replace the TODO `PKGS` line with:
 
@@ -16,119 +12,152 @@ Open `app/Makefile` and replace the TODO `PKGS` line with:
 PKGS = gio-2.0 gio-unix-2.0 vdostream
 ```
 
-## Step 3: Add main setup snippet
+## Step 2: Add video access to manifest.json
 
-Paste this into `main()` at the next TODO position:
+Open `app/manifest.json`.
 
-```c
-g_autoptr(GError) error = NULL;
-    g_autoptr(VdoStream) stream = NULL;
-    g_autoptr(VdoMap) info = NULL;
+After `schemaVersion`, add the `resources` block below. Remember to add a comma after the `schemaVersion` line and keep the comma after the closing brace of `resources`.
 
-    syslog(LOG_INFO, "Starting %s", argv[0]);
-
-    // Create RGB stream
-    // / This convenience API is roughly equivalent to:
-    // g_autoptr(GError) error = nullptr;
-    // g_autoptr(VdoMap) settings = vdo_map_new();
-    // vdo_map_set_boolean(settings, "socket.blocking", false);
-    // vdo_map_set_string(settings,  "image.fit", "scale");
-    // vdo_map_set_uint32(settings,  "buffer.count", 2u);
-    // vdo_map_set_uint32(settings,  "format", VDO_FORMAT_RGB);
-    // vdo_map_set_uint32(settings,  "input", ...);
-    // vdo_map_set_pair32u(settings, "resolution", ...);
-    // vdo_stream_new(settings, nullptr, &error);
-
-    stream = vdo_stream_rgb_new(NULL, 1u, (VdoResolution){ .width = 640u, .height = 360u }, &error);
-
-    if (!stream)
-        return handle_vdo_failed(error);
+```json
+"resources": {
+    "linux": {
+        "user": {
+            "groups": ["video"]
+        }
+    }
+},
 ```
 
-## Step 4: Add main configuration snippet
+## Step 3: Initialize logging and variables
 
-Paste this into `main()` at the next TODO position:
+Open `app/vdo_stream_rgb.c`.
+
+Paste this where the file says `TODO 1`:
 
 ```c
-//Get stream fd
-    int fd = vdo_stream_get_fd(stream, &error);
+GError* error = NULL;
+VdoStream* stream = NULL;
+VdoMap* info = NULL;
 
-    if (fd < 0)
-        return handle_vdo_failed(error);
-
-    struct pollfd fds = {
-        .fd = fd,
-        .events = POLL_IN,
-    };
-
-    // Start stream
-    if (!vdo_stream_start(stream, &error))
-        return handle_vdo_failed(error);
-
-    syslog(LOG_INFO, "Polling stream fd for new frames with non-blocking socket");
-
-    info = vdo_stream_get_info(stream, &error);
-
-    if (!info)
-        panic("%s: Failed to get vdo stream info: %s", __func__, error->message);
-
-    syslog(LOG_INFO, "Starting stream format RGB - resolution: %ux%u, at %u fps\n", vdo_map_get_uint32(info, "width", 0), vdo_map_get_uint32(info, "height", 0), (unsigned int)(vdo_map_get_double(info, "framerate", 0.0) + 0.5));
+openlog(NULL, LOG_PID, LOG_USER);
+syslog(LOG_INFO, "Starting %s", argv[0]);
 ```
 
-## Step 5: Add main runtime flow snippet
+## Step 4: Create the RGB stream
 
-Paste this into `main()` at the next TODO position:
+Paste this where the file says `TODO 2`:
 
 ```c
-// Fetch 10 frames
-    for (size_t i = 0; i < 10;)
-    {
-        int status = 0;
-        do {
-            // If poll returns -1 then errno is set
-            // if the errno is set to EINTR then just
-            // continue this loop
-            status = poll(&fds, 1, -1);
-        } while (status == -1 && errno == EINTR);
-
-        if (status < 0) {
-            panic("Failed to poll with status %d", status);
-        }
-
-        g_autoptr(VdoBuffer) vdo_buf = vdo_stream_get_buffer(stream, &error);
-
-        if (!vdo_buf && g_error_matches(error, VDO_ERROR, VDO_ERROR_NO_DATA)) {
-            g_clear_error(&error);
-            continue;
-        }
-        if (!vdo_buf) {
-            return handle_vdo_failed(error);
-        }
+stream = vdo_stream_rgb_new(NULL,
+                            1u,
+                            (VdoResolution){.width = 640u, .height = 360u},
+                            &error);
+if (!stream) {
+    return handle_vdo_failed(error);
+}
 ```
 
-## Step 6: Add main processing loop snippet
+This convenience API requests RGB frames from channel 1 at 640 x 360.
 
-Paste this into `main()` at the next TODO position:
+## Step 5: Get the fd, start the stream, and log info
+
+Paste this where the file says `TODO 3`:
 
 ```c
-// Get frame metadata
-        VdoFrame *frame = vdo_buffer_get_frame(vdo_buf);
+int fd = vdo_stream_get_fd(stream, &error);
+if (fd < 0) {
+    return handle_vdo_failed(error);
+}
 
-        // Capture timestamp (microseconds)
-        gint64 pts = vdo_frame_get_timestamp(frame);
+struct pollfd fds = {
+    .fd = fd,
+    .events = POLL_IN,
+};
 
-        syslog(LOG_INFO, "<6>Timestamp: %u us - Frame: %u, Size: %zu\n", (unsigned int)pts, vdo_frame_get_sequence_nbr(frame), vdo_frame_get_size(frame));
+if (!vdo_stream_start(stream, &error)) {
+    return handle_vdo_failed(error);
+}
 
-        // Allow VDO to reuse frame
-        if (!vdo_stream_buffer_unref(stream, &vdo_buf, &error))
-        {
-            return handle_vdo_failed(error);
-        }
-        // Only successful frames count
-        i += 1;
+info = vdo_stream_get_info(stream, &error);
+if (!info) {
+    panic("%s: Failed to get vdo stream info: %s", __func__, error->message);
+}
+
+syslog(LOG_INFO,
+       "Starting stream format RGB - resolution: %ux%u, pitch: %u, at %u fps",
+       vdo_map_get_uint32(info, "width", 0),
+       vdo_map_get_uint32(info, "height", 0),
+       vdo_map_get_uint32(info, "pitch", 0),
+       (unsigned int)(vdo_map_get_double(info, "framerate", 0.0) + 0.5));
+```
+
+Reading stream info shows what VDO actually created, including RGB pitch.
+
+## Step 6: Poll before fetching buffers
+
+Paste this where the file says `TODO 4`:
+
+```c
+for (size_t i = 0; i < 10;) {
+    int status = 0;
+    do {
+        status = poll(&fds, 1, -1);
+    } while (status == -1 && errno == EINTR);
+
+    if (status < 0) {
+        panic("Failed to poll with status %d", status);
     }
 
-    return EXIT_SUCCESS;
+    VdoBuffer* vdo_buf = vdo_stream_get_buffer(stream, &error);
+    if (!vdo_buf && g_error_matches(error, VDO_ERROR, VDO_ERROR_NO_DATA)) {
+        g_clear_error(&error);
+        continue;
+    }
+    if (!vdo_buf) {
+        return handle_vdo_failed(error);
+    }
+```
+
+The polling logic is unchanged from the non-blocking H.264 example.
+
+## Step 7: Inspect and return each RGB buffer
+
+Paste this where the file says `TODO 5`:
+
+```c
+    VdoFrame* frame = vdo_buffer_get_frame(vdo_buf);
+    gint64 pts = vdo_frame_get_timestamp(frame);
+
+    syslog(LOG_INFO,
+           "Format: RGB - Timestamp: %u us - Frame: %u, Size: %zu",
+           (unsigned int)pts,
+           vdo_frame_get_sequence_nbr(frame),
+           vdo_frame_get_size(frame));
+
+    if (!vdo_stream_buffer_unref(stream, &vdo_buf, &error)) {
+        return handle_vdo_failed(error);
+    }
+
+    i += 1;
+}
+```
+
+RGB buffers are raw pixel data, but the ownership rule is still the same: return each buffer to VDO after use.
+
+## Step 8: Clean up
+
+Paste this where the file says `TODO 6`:
+
+```c
+if (info) {
+    g_object_unref(info);
+}
+if (stream) {
+    g_object_unref(stream);
+}
+
+closelog();
+return EXIT_SUCCESS;
 ```
 
 ## Build
@@ -140,11 +169,9 @@ docker build --tag vdo-stream-rgb --build-arg ARCH=aarch64 .
 docker cp $(docker create vdo-stream-rgb):/opt/app ./build
 ```
 
-The generated `.eap` package will be copied into `./build`.
-
 ## Verify
 
-Install the `.eap` on a camera and verify the behavior described by the exercise code and comments. Use the application log to confirm the main API calls run in the expected order.
+Install the application, start it, and follow the [test guide](.test/test.md).
 
 ## Reference
 
