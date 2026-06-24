@@ -53,7 +53,7 @@ static gboolean send_event(AppData *send_data) {
     // The key/value set is no longer needed
     ax_event_key_value_set_free(key_value_set);
 
-    /* TODO 2: Send the event for the selected declaration id. */
+    /* TODO 2: Send the event for the selected declaration id and log the value. */
 
     ax_event_free(event);
 
@@ -64,7 +64,7 @@ static gboolean send_event(AppData *send_data) {
 }
 static void declaration_complete(guint declaration, guint *value) {
 
-    syslog(LOG_INFO, "Declaration complete for: %d with value: %d", declaration, *value);
+    syslog(LOG_INFO, "Declaration complete for: %u with value: %u", declaration, *value);
 
     
      // Start timer only once (after declaring the "0" value)
@@ -82,8 +82,6 @@ static guint setup_declaration(AXEventHandler* event_handler, guint *value) {
 
     AXEventKeyValueSet* key_value_set = NULL;
     guint declaration                 = 0;
-    GError* error                     = NULL;
-
     key_value_set = ax_event_key_value_set_new();
 
     /* TODO 3: Add the SendPulseDropDown topic keys and nice names. */

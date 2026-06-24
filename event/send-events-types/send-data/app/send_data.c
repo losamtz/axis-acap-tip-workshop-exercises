@@ -9,7 +9,7 @@
 #define LOG(fmt, args...)    { syslog(LOG_INFO, fmt, ## args); printf(fmt, ## args); }
 #define LOG_ERROR(fmt, args...)    { syslog(LOG_CRIT, fmt, ## args); printf(fmt, ## args); }
 
-#define SERVICE_ID   "send-data"
+#define SERVICE_ID   "send_data"
 
 #define TOPIC0_TAG  "CameraApplicationPlatform"
 #define TOPIC0_NAME "ACAP"
@@ -59,7 +59,7 @@ static gboolean send_data(AppData *send_data) {
   generate_random_data(send_data);
   key_value_set = ax_event_key_value_set_new();
 
-  /* TODO 1: Add the runtime data values to the event key/value set. */
+  /* TODO 1: Add the runtime temperature, load, used memory, and free memory values. */
 
   // Create the event
   event = ax_event_new2(key_value_set, NULL);
@@ -67,7 +67,7 @@ static gboolean send_data(AppData *send_data) {
   // The key/value set is no longer needed
   ax_event_key_value_set_free(key_value_set);
 
-  /* TODO 2: Send the event with the declared event id. */
+  /* TODO 2: Send the event with the event handler and declared event id. */
 
   ax_event_free(event);
 
@@ -75,14 +75,20 @@ static gboolean send_data(AppData *send_data) {
   return TRUE;
 }
 
-static void declaration_complete(guint declaration, gdouble *value) {
+static void declaration_complete(guint declaration, gdouble *start_value) {
 
     LOG("Declaration complete for: %d\n", declaration);
     
-    app_data->temperature = *value;
+    app_data->temperature = *start_value;
     app_data->load = 0.0;
     app_data->used_memory = 0;
     app_data->free_memory = 0;
+
+    LOG("Initial values: temperature=%.2f load=%.2f used=%u free=%u\n",
+        app_data->temperature,
+        app_data->load,
+        app_data->used_memory,
+        app_data->free_memory);
 
     // timer to be called every 3th second
     app_data->timer = g_timeout_add_seconds(3, (GSourceFunc)send_data, app_data);
@@ -107,7 +113,7 @@ static guint setup_declaration(AXEventHandler *event_handler) {
 
       // OMITING ERROR HANDLING!
 
-      /* TODO 3: Declare the SendData topic and data schema. */
+      /* TODO 3: Declare the SendData topic and application data schema. */
       
       //Note that the 3:rd parameter defines if the event is stateful or stateless.  1 = stateless, 0 = stateful
       /* TODO 4: Declare the stateless event. */

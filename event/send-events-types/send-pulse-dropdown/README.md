@@ -1,6 +1,8 @@
 # Send Pulse Dropdown Exercise
 
-This exercise declares several stateless pulse events where `value` is marked as a source field, making the values available as dropdown choices in the event/action UI.
+This exercise declares several stateless pulse events where `value` is marked as a source field. Declaring one event per value makes the camera event/action UI show the values as dropdown choices.
+
+`app/send_pulse_drop_down.c` keeps the main loop and event handler lifecycle in place so the exercise can focus on source values, multiple declarations, and sending the event id that matches the selected value.
 
 ## Step 1: Add build dependencies
 
@@ -10,37 +12,112 @@ Open `app/Makefile` and replace the TODO `PKGS` line with:
 PKGS = glib-2.0 axevent
 ```
 
-## Step 2: Add and send the selected value
+## Step 2: Add the selected runtime value
 
-Open `app/send_pulse_drop_down.c`.
-
-For `TODO 1`, add the selected value to the runtime event:
+Open `app/send_pulse_drop_down.c` and paste this where the file says `TODO 1`:
 
 ```c
-ax_event_key_value_set_add_key_value(key_value_set, "value", NULL, &value, AX_VALUE_TYPE_INT, NULL);
+ax_event_key_value_set_add_key_value(key_value_set,
+                                     "value",
+                                     NULL,
+                                     &value,
+                                     AX_VALUE_TYPE_INT,
+                                     NULL);
 ```
 
-For `TODO 2`, send with the declaration id that matches that value:
+The runtime `value` comes from `send_data->values[send_data->value_index]`.
+
+## Step 3: Send the matching declaration
+
+Paste this where the file says `TODO 2`:
 
 ```c
-if (!ax_event_handler_send_event(send_data->event_handler, event_id, event, NULL))
+if (!ax_event_handler_send_event(send_data->event_handler,
+                                 event_id,
+                                 event,
+                                 NULL)) {
     LOG_ERROR("Could not fire event with value: %u\n", value);
-else
+} else {
     LOG("Event sent with value: %u\n", value);
+}
 ```
 
-## Step 3: Declare source values
+Use `event_id`, not a single shared event id. Each dropdown value has its own declaration id.
 
-For `TODO 3`, add `topic0`, `topic1`, and `topic2` using the constants in the file.
+## Step 4: Declare the topic path
 
-For `TODO 4`, add `value` and mark it as a source:
+Paste this where the file says `TODO 3`:
 
 ```c
-ax_event_key_value_set_add_key_value(key_value_set, "value", NULL, value, AX_VALUE_TYPE_INT, NULL);
+ax_event_key_value_set_add_key_value(key_value_set,
+                                     "topic0",
+                                     "tnsaxis",
+                                     TOPIC0_TAG,
+                                     AX_VALUE_TYPE_STRING,
+                                     NULL);
+
+ax_event_key_value_set_add_key_value(key_value_set,
+                                     "topic1",
+                                     "tnsaxis",
+                                     TOPIC1_TAG,
+                                     AX_VALUE_TYPE_STRING,
+                                     NULL);
+ax_event_key_value_set_add_nice_names(key_value_set,
+                                      "topic1",
+                                      "tnsaxis",
+                                      TOPIC1_TAG,
+                                      TOPIC1_NAME,
+                                      NULL);
+
+ax_event_key_value_set_add_key_value(key_value_set,
+                                     "topic2",
+                                     "tnsaxis",
+                                     EVENT_TAG,
+                                     AX_VALUE_TYPE_STRING,
+                                     NULL);
+ax_event_key_value_set_add_nice_names(key_value_set,
+                                      "topic2",
+                                      "tnsaxis",
+                                      EVENT_TAG,
+                                      EVENT_NAME,
+                                      NULL);
+```
+
+The topic path is `CameraApplicationPlatform/SendPulseDropDown/SendPulseDropDownEvent`.
+
+## Step 5: Add the dropdown source value
+
+Paste this where the file says `TODO 4`:
+
+```c
+ax_event_key_value_set_add_key_value(key_value_set,
+                                     "value",
+                                     NULL,
+                                     value,
+                                     AX_VALUE_TYPE_INT,
+                                     NULL);
 ax_event_key_value_set_mark_as_source(key_value_set, "value", NULL, NULL);
 ```
 
-For `TODO 5`, declare the event as stateless.
+Marking `value` as a source field lets the camera UI present the declared values as dropdown choices.
+
+## Step 6: Declare the stateless event
+
+Paste this where the file says `TODO 5`:
+
+```c
+if (!ax_event_handler_declare(event_handler,
+                              key_value_set,
+                              1,
+                              &declaration,
+                              (AXDeclarationCompleteCallback)declaration_complete,
+                              value,
+                              NULL)) {
+    LOG_ERROR("Could not declare event\n");
+}
+```
+
+The third argument is `1`, which declares a stateless event. Do not read `error->message` here unless you also pass a valid `GError**` to the declaration call.
 
 ## Build
 

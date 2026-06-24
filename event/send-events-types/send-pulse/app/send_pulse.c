@@ -9,7 +9,7 @@
 #define LOG(fmt, args...)    { syslog(LOG_INFO, fmt, ## args); printf(fmt, ## args); }
 #define LOG_ERROR(fmt, args...)    { syslog(LOG_CRIT, fmt, ## args); printf(fmt, ## args); }
 
-#define SERVICE_ID   "send-pulse"
+#define SERVICE_ID   "send_pulse"
 
 #define TOPIC0_TAG  "CameraApplicationPlatform"
 #define TOPIC0_NAME "ACAP"
@@ -36,7 +36,7 @@ static gboolean send_event(AppData *send_data) {
     
     key_value_set = ax_event_key_value_set_new();
 
-    /* TODO 1: Add the pulse value to the runtime event. */
+    /* TODO 1: Add the current pulse value to the runtime event. */
     
     //time_stamp = g_date_time_new_now_local();
 
@@ -47,7 +47,7 @@ static gboolean send_event(AppData *send_data) {
     // The key/value set is no longer needed
     ax_event_key_value_set_free(key_value_set);
 
-    /* TODO 2: Send the pulse event. */
+    /* TODO 2: Send the pulse event and log the value that was sent. */
     ax_event_free(event);
     //g_date_time_unref(time_stamp);
 
@@ -58,9 +58,9 @@ static gboolean send_event(AppData *send_data) {
     // Returning TRUE keeps the timer going
     return TRUE;
 }
-static void declaration_complete(guint declaration, int *start_value) {
+static void declaration_complete(guint declaration, guint *start_value) {
     syslog(LOG_INFO, "Declaration complete for: %d", declaration);
-    syslog(LOG_INFO, "Declaration complete start value: %d", *start_value);
+    syslog(LOG_INFO, "Declaration complete start value: %u", *start_value);
     app_data->value = *start_value;
 
     // Set up a timer to be called every 10th second
@@ -71,9 +71,6 @@ static guint setup_declaration(AXEventHandler* event_handler, guint *start_value
 
     AXEventKeyValueSet* key_value_set = NULL;
     guint declaration                 = 0;
-    GError* error                     = NULL;
-
-    
     key_value_set = ax_event_key_value_set_new();
     
   //Note that the name space is "tnsaxis:".  It is not recommended to create own name spaces or use the

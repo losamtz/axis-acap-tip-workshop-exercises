@@ -9,7 +9,7 @@
 #define LOG(fmt, args...)    { syslog(LOG_INFO, fmt, ## args); printf(fmt, ## args); }
 #define LOG_ERROR(fmt, args...)    { syslog(LOG_CRIT, fmt, ## args); printf(fmt, ## args); }
 
-#define SERVICE_ID   "send-state"
+#define SERVICE_ID   "send_state"
 
 #define TOPIC0_TAG  "CameraApplicationPlatform"
 #define TOPIC0_NAME "ACAP"
@@ -36,7 +36,7 @@ static gboolean send_event(AppData *send_data) {
     
     key_value_set = ax_event_key_value_set_new();
 
-    /* TODO 1: Add the active state value to the runtime event. */
+    /* TODO 1: Add the current active state value to the runtime event. */
     
     //time_stamp = g_date_time_new_now_local();
 
@@ -47,7 +47,7 @@ static gboolean send_event(AppData *send_data) {
     // The key/value set is no longer needed
     ax_event_key_value_set_free(key_value_set);
 
-    /* TODO 2: Send the state event. */
+    /* TODO 2: Send the state event before toggling the value. */
     ax_event_free(event);
     //g_date_time_unref(time_stamp);
 
@@ -57,10 +57,11 @@ static gboolean send_event(AppData *send_data) {
     // Returning TRUE keeps the timer going
     return TRUE;
 }
-static void declaration_complete(guint declaration, int *value) {
-  syslog(LOG_INFO, "Declaration complete for: %d", declaration);
+static void declaration_complete(guint declaration, guint *start_value) {
+    syslog(LOG_INFO, "Declaration complete for: %d", declaration);
+    syslog(LOG_INFO, "Declaration complete start value: %u", *start_value);
 
-    app_data->state_value = *value;
+    app_data->state_value = *start_value;
 
     // Set up a timer to be called every 10th second
     app_data->timer = g_timeout_add_seconds(5, (GSourceFunc)send_event, app_data);
@@ -70,9 +71,6 @@ static guint setup_declaration(AXEventHandler* event_handler, guint *start_value
 
     AXEventKeyValueSet* key_value_set = NULL;
     guint declaration                 = 0;
-    GError* error                     = NULL;
-
-    
     key_value_set = ax_event_key_value_set_new();
     
   //Note that the name space is "tnsaxis:".  It is not recommended to create own name spaces or use the
