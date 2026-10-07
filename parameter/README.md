@@ -12,6 +12,7 @@ This folder belongs in the basic track of the workshop.
 flowchart TD
     A[parameter-manifest<br/>declare parameters in manifest] --> B[parameter-runtime<br/>add/set/list/remove in C]
     B --> C[parameter-custom-interface<br/>connect parameters to a web UI]
+    C --> D[parameter-ACAP-upgrade<br/>preserve settings across upgrades]
 ```
 
 ## Example Summary
@@ -21,6 +22,7 @@ flowchart TD
 | `parameter-manifest` | Parameters declared in `manifest.json` | callbacks and GLib main loop |
 | `parameter-runtime` | Parameters created by C code | add, set, list, remove |
 | `parameter-custom-interface` | Parameters controlled from a web UI | `param.cgi`, callbacks, deferred writes |
+| `parameter-ACAP-upgrade` | Settings preserved across app upgrades | AXParameter, local JSON, FastCGI |
 
 ## Core Concept
 
