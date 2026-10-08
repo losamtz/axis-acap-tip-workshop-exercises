@@ -1,0 +1,37 @@
+{
+    "schemaVersion": "2.0.0",
+    "acapPackageConf": {
+        "setup": {
+            "friendlyName": "Parameter ACAP upgrade",
+            "appName": "parameter_ACAP_upgrade",
+            "vendor": "Axis Communications",
+            "vendorId": "1234567890",
+            "vendorUrl": "https://www.axis.com",
+            "runMode": "never",
+            "version": "1.0.0",
+            "compatibleOsVersions": [
+                {
+                    "min": "12.10",
+                    "max": "13"
+                }
+            ]
+        },
+        "configuration": {
+            "settingPage": "settings.cgi",
+            "httpConfig": [
+                {
+                    "access": "admin",
+                    "name": "settings.cgi",
+                    "type": "fastCgi"
+                }
+            ],
+            "paramConfig": [
+                {
+                    "name": "ACAPName",
+                    "default": "Parameter ACAP Upgrade",
+                    "type": "string:maxlen=64"
+                }
+            ]
+        }
+    }
+}
